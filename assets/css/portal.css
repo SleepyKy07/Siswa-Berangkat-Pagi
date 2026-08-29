@@ -17,14 +17,16 @@ body{
 
 .portal-head{
   background:linear-gradient(135deg,var(--utama) 0%,var(--utama2) 55%,var(--ak-1) 100%);
-  background-image:linear-gradient(135deg,rgba(67,56,202,.9),rgba(99,102,241,.82)),url("../images/banner.jpg");
-  background-size:cover;background-position:center;
+  background-image:linear-gradient(135deg,var(--utama) 0%,var(--utama2) 55%,var(--ak-1) 100%);
   color:#fff;text-align:center;padding:34px 18px 26px;
   box-shadow:0 4px 20px rgba(67,56,202,.3);
   position:relative;overflow:hidden;
 }
 .portal-head::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 20%,rgba(255,255,255,.15),transparent 45%)}
 .portal-head>*{position:relative;z-index:1}
+.head-logo{position:absolute;top:12px;width:52px;height:52px;object-fit:contain;border-radius:12px;background:rgba(255,255,255,.92);padding:4px;box-shadow:0 4px 12px rgba(0,0,0,.22)}
+.head-logo.left{left:12px}
+.head-logo.right{right:12px}
 .logo-frame{width:78px;height:78px;margin:0 auto;border:3px solid rgba(253,230,138,.95);border-radius:50%;padding:4px;background:rgba(255,255,255,.14);box-shadow:0 5px 16px rgba(0,0,0,.25);overflow:hidden}
 .logo-osis{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block;filter:drop-shadow(0 4px 8px rgba(0,0,0,.25))}
 .portal-head h1{font-size:1.5rem;font-weight:800;letter-spacing:.01em;margin-top:8px}
@@ -102,6 +104,9 @@ footer{text-align:center;color:var(--abu);font-size:.75rem;padding:14px;margin-t
 .btn-garis{background:#fff;color:var(--utama);border:1.5px solid var(--utama2)}
 
 @media(max-width:560px){
+  .head-logo{top:8px;width:40px;height:40px;border-radius:10px}
+  .head-logo.left{left:8px}
+  .head-logo.right{right:8px}
   .portal-head h1{font-size:1.25rem}
   .stats{grid-template-columns:1fr 1fr}
   .stats .stat:last-child{grid-column:1/-1}
