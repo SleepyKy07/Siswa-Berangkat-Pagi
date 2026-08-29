@@ -28,6 +28,10 @@ body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:linear
 .modal-close{border:none;background:#f0fdfa;color:var(--primary-dark);font-size:1.4rem;line-height:1;width:34px;height:34px;border-radius:50%;cursor:pointer}
 .modal-close:hover{background:#d9f3ee}
 .modal-sub{font-size:.8rem;color:var(--muted);margin-bottom:14px}
+.minggu-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.minggu-tab{border:1.5px solid var(--line);background:#fff;color:var(--muted);border-radius:10px;padding:8px 13px;font:700 .8rem inherit;cursor:pointer;transition:.18s}
+.minggu-tab.aktif{border-color:var(--primary);color:#fff;background:var(--primary)}
+.minggu-tab:hover:not(.aktif){border-color:var(--primary);color:var(--primary)}
 .jadwal-grid{display:grid;gap:10px}
 .jadwal-hari{display:grid;grid-template-columns:110px 1fr 1fr;gap:8px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fbfffe}.jadwal-hari.today{border-color:var(--accent);background:#fffbeb;box-shadow:0 0 0 2px rgba(245,158,11,.25)}
 .jadwal-nama{font-weight:800;font-size:.86rem;color:var(--primary-dark)}
@@ -94,7 +98,8 @@ main{max-width:1100px;margin:18px auto;padding:0 14px}.tab{display:none}.tab.act
       <h3>&#128197; Jadwal Piket OSIS</h3>
       <button class="modal-close" id="btnTutupJadwal">&times;</button>
     </div>
-    <p class="modal-sub">Pilih 2 anggota OSIS untuk setiap hari. Data diambil dari daftar siswa.</p>
+    <p class="modal-sub">Pilih 2 anggota OSIS untuk setiap hari, sesuai minggu piket. Data diambil dari daftar siswa.</p>
+    <div class="minggu-tabs" id="mingguTabs"></div>
     <div class="jadwal-grid" id="jadwalGrid"></div>
     <div class="modal-aksi">
       <button class="btn soft" id="btnKosongkan">Kosongkan</button>
@@ -134,13 +139,28 @@ function resetBoard(){if(!Object.keys(db.pagi).length&&!Object.keys(db.poin).len
 /* ================= JADWAL PIKET OSIS ================= */
 var HARI=['senin','selasa','rabu','kamis','jumat','sabtu'];
 var NAMA_HARI={senin:'Senin',selasa:'Selasa',rabu:'Rabu',kamis:'Kamis',jumat:'Jumat',sabtu:'Sabtu'};
+var MINGGU=['m1','m2','m3','m4'];
+var mingguAktif='m1';
+
+function namMinggu(mg){return 'Minggu '+mg.slice(1)}
+function mingguIni(){return 'm'+Math.min(4,Math.max(1,Math.floor((new Date().getDate()-1)/7)+1))}
 
 function hariHariIni(){
   var d=new Date().getDay(); /* 0=Min .. 6=Sab */
   return HARI[d-1]||null;    /* 1=Sen..6=Sab; 0=Min -> null */
 }
 
-function getJadwal(hari){return db.jadwal[hari]||[]}
+/* Konversi data jadwal lama (per hari) menjadi per minggu agar tak hilang */
+function pastikanJadwal(){
+  var j=db.jadwal||{};db.jadwal=j;
+  var lama=Object.keys(j).some(function(k){return HARI.indexOf(k)>-1&&Array.isArray(j[k])});
+  if(!lama)return;
+  var base={};HARI.forEach(function(h){if(Array.isArray(j[h]))base[h]=j[h].slice()});
+  var out={};MINGGU.forEach(function(m){out[m]={};HARI.forEach(function(h){out[m][h]=base[h]?base[h].slice():[]})});
+  db.jadwal=out;save();
+}
+
+function getJadwal(mg,h){pastikanJadwal();return ((db.jadwal[mg])||{})[h]||[]}
 
 function namaSiswa(id){
   if(!id)return '';
@@ -156,15 +176,22 @@ function opsiSiswa(idPilih){
   return o;
 }
 
+function renderMingguTabs(){
+  var el=$('#mingguTabs');if(!el)return;
+  el.innerHTML=MINGGU.map(function(m){
+    return '<button type="button" class="minggu-tab'+(m===mingguAktif?' aktif':'')+'" data-minggu="'+m+'">'+namMinggu(m)+'</button>';
+  }).join('');
+}
+
 function renderJadwalGrid(){
   var el=$('#jadwalGrid');
   if(!db.students.length){
     el.innerHTML='<div class="empty">Belum ada siswa. Tambahkan siswa di tab Data Siswa terlebih dahulu.</div>';
     return;
   }
-  var hariIni=hariHariIni();
+  var hariIni=(mingguAktif===mingguIni())?hariHariIni():null;
   el.innerHTML=HARI.map(function(h){
-    var arr=getJadwal(h);
+    var arr=getJadwal(mingguAktif,h);
     var isToday=h===hariIni;
     return '<div class="jadwal-hari'+(isToday?' today':'')+'">'+
       '<div class="jadwal-nama">'+NAMA_HARI[h]+(isToday?'<small>&#9733; Hari ini</small>':'')+'</div>'+
@@ -177,35 +204,38 @@ function renderJadwalGrid(){
 function renderHariPetugas(){
   var el=$('#hariPetugas');
   if(!el)return;
+  var mg=mingguIni();
   var h=hariHariIni();
   if(!h){
     el.innerHTML='<b>Hari ini:</b> <span class="empty-jadwal">Ahad / libur - tidak ada jadwal piket</span>';
     return;
   }
-  var arr=getJadwal(h).filter(function(id){return id});
+  var arr=getJadwal(mg,h).filter(function(id){return id});
   var nama=arr.map(namaSiswa).filter(function(n){return n});
-  el.innerHTML='<b>Petugas piket hari ini ('+NAMA_HARI[h]+'):</b> '+
+  el.innerHTML='<b>Petugas piket hari ini ('+NAMA_HARI[h]+' &middot; '+namMinggu(mg)+'):</b> '+
     (nama.length?'<span>'+nama.map(function(n){return '&#128104;&#8205;&#128187; '+esc(n)}).join(' &amp; ')+'</span>':'<span class="empty-jadwal">Belum diatur. Klik tombol &#128197; Jadwal di atas.</span>');
 }
 
 function simpanJadwal(){
+  pastikanJadwal();
+  if(!db.jadwal[mingguAktif])db.jadwal[mingguAktif]={};
   HARI.forEach(function(h){
     var a=$('select[data-hari="'+h+'"][data-slot="0"]');
     var b=$('select[data-hari="'+h+'"][data-slot="1"]');
-    if(a&&b)db.jadwal[h]=[a.value,b.value];
+    if(a&&b)db.jadwal[mingguAktif][h]=[a.value,b.value];
   });
   save();
   renderJadwalGrid();renderHariPetugas();
-  alert('Jadwal piket tersimpan.');
+  alert('Jadwal piket '+namMinggu(mingguAktif)+' tersimpan.');
 }
 
 function kosongkanJadwal(){
-  if(!confirm('Kosongkan semua jadwal piket?'))return;
-  db.jadwal={};
+  if(!confirm('Kosongkan semua jadwal piket pada '+namMinggu(mingguAktif)+'?'))return;
+  db.jadwal[mingguAktif]={};
   save();renderJadwalGrid();renderHariPetugas();
 }
 
-function bukaJadwal(){renderJadwalGrid();$('#modalJadwal').classList.add('buka')}
+function bukaJadwal(){pastikanJadwal();renderMingguTabs();renderJadwalGrid();$('#modalJadwal').classList.add('buka')}
 function tutupJadwal(){$('#modalJadwal').classList.remove('buka')}
 
 function csv(){var rows=[['Nama','NIS','Kelas','Jurusan','Jumlah Menuju Apresiasi','Poin Apresiasi']];sorted().forEach(function(s){rows.push([s.nama,s.nis||'',s.kelas||'',s.jurusan||'',morningCount(s.id),db.poin[s.id]||0])});var text='\uFEFF'+rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(';')}).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.download='papan-apresiasi-siswa-pagi.csv';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},500)}
@@ -239,7 +269,7 @@ function ledakkan(){
   })();
 }
 
-document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});$('#studentForm').addEventListener('submit',submitStudent);$('#cancelBtn').addEventListener('click',resetForm);$('#studentSearch').addEventListener('input',renderStudents);$('#dateInput').addEventListener('change',renderMorning);$('#todayBtn').addEventListener('click',function(){$('#dateInput').value=today();renderMorning()});$('#morningSearch').addEventListener('input',renderMorning);$('#resetMorningBtn').addEventListener('click',resetMorning);$('#boardSearch').addEventListener('input',renderBoard);$('#resetBoardBtn').addEventListener('click',resetBoard);$('#csvBtn').addEventListener('click',csv);$('#btnBukaJadwal').addEventListener('click',bukaJadwal);$('#btnTutupJadwal').addEventListener('click',tutupJadwal);$('#btnSimpanJadwal').addEventListener('click',simpanJadwal);$('#btnKosongkan').addEventListener('click',kosongkanJadwal);$('#modalJadwal').addEventListener('click',function(e){if(e.target===$('#modalJadwal'))tutupJadwal()});document.addEventListener('keydown',function(e){if(e.key==='Escape')tutupJadwal()});$('#dateInput').value=today();renderStudents();renderMorning();renderBoard();renderHariPetugas();
+document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});$('#studentForm').addEventListener('submit',submitStudent);$('#cancelBtn').addEventListener('click',resetForm);$('#studentSearch').addEventListener('input',renderStudents);$('#dateInput').addEventListener('change',renderMorning);$('#todayBtn').addEventListener('click',function(){$('#dateInput').value=today();renderMorning()});$('#morningSearch').addEventListener('input',renderMorning);$('#resetMorningBtn').addEventListener('click',resetMorning);$('#boardSearch').addEventListener('input',renderBoard);$('#resetBoardBtn').addEventListener('click',resetBoard);$('#csvBtn').addEventListener('click',csv);  $('#btnBukaJadwal').addEventListener('click',bukaJadwal);$('#btnTutupJadwal').addEventListener('click',tutupJadwal);$('#btnSimpanJadwal').addEventListener('click',simpanJadwal);$('#btnKosongkan').addEventListener('click',kosongkanJadwal);$('#modalJadwal').addEventListener('click',function(e){if(e.target===$('#modalJadwal'))tutupJadwal()});document.addEventListener('click',function(e){var t=e.target.closest('.minggu-tab');if(t){mingguAktif=t.dataset.minggu;renderMingguTabs();renderJadwalGrid()}});document.addEventListener('keydown',function(e){if(e.key==='Escape')tutupJadwal()});$('#dateInput').value=today();renderStudents();renderMorning();renderBoard();renderHariPetugas();
 </script>
 </body>
 </html>
