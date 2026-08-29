@@ -20,7 +20,8 @@ body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:linear
 @media(max-width:600px){.btn-jadwal{font-size:.72rem;padding:6px 10px}}
 
 /* Modal jadwal */
-.modal-overlay{position:fixed;inset:0;background:rgba(19,78,74,.55);z-index:1100;display:flex;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(3px)}
+.modal-overlay{position:fixed;inset:0;background:rgba(19,78,74,.55);z-index:1100;display:none;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(3px)}
+.modal-overlay.buka{display:flex}
 .modal-box{background:#fff;border-radius:18px;max-width:680px;width:100%;max-height:88vh;overflow:auto;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
 .modal-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:4px}
 .modal-head h3{font-size:1.05rem;color:var(--primary-dark)}
@@ -87,7 +88,7 @@ main{max-width:1100px;margin:18px auto;padding:0 14px}.tab{display:none}.tab.act
 </main>
 
 <!-- Modal jadwal piket OSIS -->
-<div class="modal-overlay" id="modalJadwal" hidden>
+<div class="modal-overlay" id="modalJadwal">
   <div class="modal-box">
     <div class="modal-head">
       <h3>&#128197; Jadwal Piket OSIS</h3>
@@ -204,8 +205,8 @@ function kosongkanJadwal(){
   save();renderJadwalGrid();renderHariPetugas();
 }
 
-function bukaJadwal(){renderJadwalGrid();$('#modalJadwal').hidden=false}
-function tutupJadwal(){$('#modalJadwal').hidden=true}
+function bukaJadwal(){renderJadwalGrid();$('#modalJadwal').classList.add('buka')}
+function tutupJadwal(){$('#modalJadwal').classList.remove('buka')}
 
 function csv(){var rows=[['Nama','NIS','Kelas','Jurusan','Jumlah Menuju Apresiasi','Poin Apresiasi']];sorted().forEach(function(s){rows.push([s.nama,s.nis||'',s.kelas||'',s.jurusan||'',morningCount(s.id),db.poin[s.id]||0])});var text='\uFEFF'+rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(';')}).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.download='papan-apresiasi-siswa-pagi.csv';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},500)}
 function showTab(name){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===name)});document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.id==='tab-'+name)});if(name==='siswa')renderStudents();if(name==='pagi'){renderMorning();renderHariPetugas()}if(name==='papan')renderBoard()}
@@ -238,7 +239,7 @@ function ledakkan(){
   })();
 }
 
-document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});$('#studentForm').addEventListener('submit',submitStudent);$('#cancelBtn').addEventListener('click',resetForm);$('#studentSearch').addEventListener('input',renderStudents);$('#dateInput').addEventListener('change',renderMorning);$('#todayBtn').addEventListener('click',function(){$('#dateInput').value=today();renderMorning()});$('#morningSearch').addEventListener('input',renderMorning);$('#resetMorningBtn').addEventListener('click',resetMorning);$('#boardSearch').addEventListener('input',renderBoard);$('#resetBoardBtn').addEventListener('click',resetBoard);$('#csvBtn').addEventListener('click',csv);$('#btnBukaJadwal').addEventListener('click',bukaJadwal);$('#btnTutupJadwal').addEventListener('click',tutupJadwal);$('#btnSimpanJadwal').addEventListener('click',simpanJadwal);$('#btnKosongkan').addEventListener('click',kosongkanJadwal);$('#modalJadwal').addEventListener('click',function(e){if(e.target===$('#modalJadwal'))tutupJadwal()});$('#dateInput').value=today();renderStudents();renderMorning();renderBoard();renderHariPetugas();
+document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});$('#studentForm').addEventListener('submit',submitStudent);$('#cancelBtn').addEventListener('click',resetForm);$('#studentSearch').addEventListener('input',renderStudents);$('#dateInput').addEventListener('change',renderMorning);$('#todayBtn').addEventListener('click',function(){$('#dateInput').value=today();renderMorning()});$('#morningSearch').addEventListener('input',renderMorning);$('#resetMorningBtn').addEventListener('click',resetMorning);$('#boardSearch').addEventListener('input',renderBoard);$('#resetBoardBtn').addEventListener('click',resetBoard);$('#csvBtn').addEventListener('click',csv);$('#btnBukaJadwal').addEventListener('click',bukaJadwal);$('#btnTutupJadwal').addEventListener('click',tutupJadwal);$('#btnSimpanJadwal').addEventListener('click',simpanJadwal);$('#btnKosongkan').addEventListener('click',kosongkanJadwal);$('#modalJadwal').addEventListener('click',function(e){if(e.target===$('#modalJadwal'))tutupJadwal()});document.addEventListener('keydown',function(e){if(e.key==='Escape')tutupJadwal()});$('#dateInput').value=today();renderStudents();renderMorning();renderBoard();renderHariPetugas();
 </script>
 </body>
 </html>
