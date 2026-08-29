@@ -26,7 +26,7 @@ body{
 .portal-head::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 20%,rgba(255,255,255,.15),transparent 45%)}
 .portal-head>*{position:relative;z-index:1}
 .head-logo{position:absolute;top:12px;width:56px;height:56px;object-fit:contain;border-radius:12px;background:#fff;padding:5px;box-shadow:0 4px 12px rgba(0,0,0,.22);border:1px solid rgba(255,255,255,.6)}
-.head-logo.left{left:12px;width:70px;height:70px}
+.head-logo.left{left:12px}
 .head-logo.right{right:12px}
 .head-logo:hover{transform:scale(1.05);box-shadow:0 6px 16px rgba(0,0,0,.28)}
 .portal-head h1{font-size:1.5rem;font-weight:800;letter-spacing:.01em;margin-top:10px}
@@ -105,7 +105,7 @@ footer{text-align:center;color:var(--abu);font-size:.75rem;padding:14px;margin-t
 
 @media(max-width:560px){
   .head-logo{top:8px;width:42px;height:42px;border-radius:10px;padding:4px}
-  .head-logo.left{left:8px;width:52px;height:52px}
+  .head-logo.left{left:8px}
   .head-logo.right{right:8px}
   .portal-head h1{font-size:1.25rem}
   .stats{grid-template-columns:1fr 1fr}
