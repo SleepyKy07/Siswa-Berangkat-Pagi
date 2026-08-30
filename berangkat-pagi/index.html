@@ -32,6 +32,25 @@ body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:linear
 .bulan-label{flex:1;text-align:center;font-weight:800;color:var(--primary-dark);font-size:.92rem}
 .bulan-btn{border:1.5px solid var(--line);background:#fff;color:var(--primary);border-radius:10px;width:36px;height:36px;font-size:1.1rem;line-height:1;cursor:pointer;transition:.18s}
 .bulan-btn:hover{border-color:var(--primary);background:#f0fdfa}
+/* Kalender jadwal piket (per tanggal) */
+.kal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:16px}
+.kal-head{display:contents}
+.kal-head span{font-size:.66rem;font-weight:800;color:var(--muted);text-transform:uppercase;text-align:center;padding-bottom:2px}
+.kal-body{display:contents}
+.kal-sel{border:1px solid var(--line);border-radius:10px;padding:6px 4px;min-height:58px;background:#fbfffe;cursor:pointer;transition:.18s;display:flex;flex-direction:column;gap:2px}
+.kal-sel:hover{border-color:#8ed5ce;transform:translateY(-1px)}
+.kal-sel.sab{background:#e6f6f3}
+.kal-sel.ini{border-color:var(--accent);background:#fffbeb;box-shadow:0 0 0 2px rgba(245,158,11,.25)}
+.kal-sel.pilih{border-color:var(--primary);background:#effcf9;box-shadow:0 0 0 2px rgba(15,118,110,.2)}
+.kal-sel.kosong{background:transparent;border-color:transparent;cursor:default;transform:none}
+.kal-sel.minggu{background:#f1f5f9;color:var(--muted);border-style:dashed;cursor:default}
+.kal-angka{font-size:.72rem;font-weight:800;color:var(--primary-dark)}
+.kal-nama{font-size:.58rem;color:var(--muted);line-height:1.25;word-break:break-word}
+.kal-nama i{font-style:normal;opacity:.5}
+.editor-jadwal{border:1px solid var(--line);border-radius:12px;background:#f0fdfa;padding:14px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.editor-tgl{grid-column:1/-1;font-weight:800;color:var(--primary-dark);font-size:.9rem}
+.editor-jadwal .actions{grid-column:1/-1}
+@media(max-width:520px){.kal-nama{font-size:.52rem}.kal-sel{min-height:46px}.editor-jadwal{grid-template-columns:1fr}}
 /* Piagam penghargaan */
 .cert{position:relative;background:#fffdf4;border:3px double #b45309;padding:30px 28px;margin-top:16px;border-radius:4px}
 .cert-inner{position:relative;text-align:center;border:1px solid #eab308;outline:1px solid #eab308;outline-offset:-9px;padding:22px 18px}
@@ -40,8 +59,7 @@ body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:linear
 .cert-title{font-size:1.55rem;font-weight:900;color:#92400e;letter-spacing:.12em;text-transform:uppercase;margin:10px 0 4px;font-family:Georgia,'Times New Roman',serif}
 .cert-line{color:#d97706;font-size:1rem;letter-spacing:.5em;margin-bottom:10px}
 .cert-label{font-size:.74rem;letter-spacing:.22em;color:#92400e;text-transform:uppercase;font-weight:700}
-.cert-name{font-size:1.85rem;font-weight:900;color:#134e4a;margin:6px 0 2px;font-family:Georgia,'Times New Roman',serif}
-.cert-class{font-size:.85rem;color:#78350f;font-weight:700}
+.cert-name{font-size:1.85rem;font-weight:900;color:#134e4a;margin:6px 0 2px;font-family:Georgia,'Times New Roman',serif;outline:none;border-bottom:1px solid transparent;padding-bottom:1px;transition:.15s;min-width:60px;display:inline-block}.cert-name:hover{border-bottom-color:#eab308}.cert-name:focus{border-bottom-color:#b45309}.cert-class{font-size:.85rem;color:#78350f;font-weight:700;outline:none;border-bottom:1px solid transparent;transition:.15s;display:inline-block;min-width:40px}.cert-class:hover{border-bottom-color:#eab308}.cert-class:focus{border-bottom-color:#b45309}.cert-title[contenteditable]{outline:none;border-bottom:1px solid transparent;cursor:text;transition:.15s;display:inline-block;min-width:120px}.cert-title[contenteditable]:hover{border-bottom-color:#eab308}.cert-title[contenteditable]:focus{border-bottom-color:#b45309}.cert-text[contenteditable]{outline:none;border:1px solid transparent;border-radius:8px;padding:4px 6px;transition:.15s;cursor:text}.cert-text[contenteditable]:hover{border-color:#fde68a}.cert-text[contenteditable]:focus{border-color:#f59e0b;background:#fffef5}.cert-org[contenteditable]{outline:none;border-bottom:1px solid transparent;transition:.15s;cursor:text;display:inline-block;min-width:80px}.cert-org[contenteditable]:hover{border-bottom-color:#eab308}.cert-org[contenteditable]:focus{border-bottom-color:#b45309}.cert-sign-label{outline:none;border-bottom:1px solid transparent;transition:.15s;cursor:text;display:inline-block;min-width:60px;font-size:.74rem;color:#57534e}.cert-sign-label:hover{border-bottom-color:#eab308}.cert-sign-label:focus{border-bottom-color:#b45309}
 .cert-text{max-width:430px;margin:14px auto 0;font-size:.78rem;line-height:1.6;color:#57534e}
 .cert-text b{color:#92400e}
 .cert-foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px;padding:0 12px}
@@ -57,11 +75,6 @@ body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:linear
   .cert{margin:0;border-radius:0}
   @page{size:A4 landscape;margin:10mm}
 }
-.minggu-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
-.minggu-tab{border:1.5px solid var(--line);background:#fff;color:var(--muted);border-radius:10px;padding:8px 13px;font:700 .8rem inherit;cursor:pointer;transition:.18s}
-.minggu-tab.aktif{border-color:var(--primary);color:#fff;background:var(--primary)}
-.minggu-tab:hover:not(.aktif){border-color:var(--primary);color:var(--primary)}
-.jadwal-grid{display:grid;gap:10px}
 .jadwal-hari{display:grid;grid-template-columns:110px 1fr 1fr;gap:8px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fbfffe}.jadwal-hari.today{border-color:var(--accent);background:#fffbeb;box-shadow:0 0 0 2px rgba(245,158,11,.25)}
 .jadwal-nama{font-weight:800;font-size:.86rem;color:var(--primary-dark)}
 .jadwal-nama small{display:block;font-weight:600;color:#b45309;font-size:.7rem}
@@ -127,14 +140,10 @@ main{max-width:1100px;margin:18px auto;padding:0 14px}.tab{display:none}.tab.act
       <h3>&#128197; Jadwal Piket OSIS</h3>
       <button class="modal-close" id="btnTutupJadwal">&times;</button>
     </div>
-    <p class="modal-sub">Pilih 2 anggota OSIS untuk setiap hari, sesuai minggu piket. Data diambil dari daftar siswa.</p>
+    <p class="modal-sub">Klik tanggal pada kalender, lalu pilih 2 anggota OSIS. Simpan per tanggal.</p>
     <div class="bulan-nav" id="bulanNav"></div>
-    <div class="minggu-tabs" id="mingguTabs"></div>
-    <div class="jadwal-grid" id="jadwalGrid"></div>
-    <div class="modal-aksi">
-      <button class="btn soft" id="btnKosongkan">Kosongkan</button>
-      <button class="btn primary" id="btnSimpanJadwal">Simpan Jadwal</button>
-    </div>
+    <div class="kal" id="kalGrid"></div>
+    <div class="editor-jadwal" id="editorJadwal"></div>
   </div>
 </div>
 
@@ -182,48 +191,36 @@ function renderBoard(){var list=sorted().sort(function(a,b){return (db.poin[b.id
 function resetMorning(){var date=$('#dateInput').value;if(!date||!db.pagi[date]){alert('Belum ada catatan pada tanggal ini.');return}if(!confirm('Reset catatan siswa pagi pada '+dateText(date)+'?'))return;var id=db.pagi[date];delete db.pagi[date];db.hitung[id]=Math.max(0,morningCount(id)-1);save();renderMorning();renderBoard()}
 function resetBoard(){if(!Object.keys(db.pagi).length&&!Object.keys(db.poin).length){alert('Papan apresiasi sudah kosong.');return}if(!confirm('Reset seluruh catatan siswa pagi, hitungan, dan poin?'))return;db.pagi={};db.poin={};db.hitung={};save();renderMorning();renderBoard()}
 
-/* ================= JADWAL PIKET OSIS ================= */
-var HARI=['senin','selasa','rabu','kamis','jumat','sabtu'];
-var NAMA_HARI={senin:'Senin',selasa:'Selasa',rabu:'Rabu',kamis:'Kamis',jumat:'Jumat',sabtu:'Sabtu'};
+/* ================= JADWAL PIKET OSIS (per tanggal) ================= */
+var NAMA_HARI_KEPANG=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
 var NAMA_BULAN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
-var MINGGU=['m1','m2','m3','m4','m5'];
 var bulanAktif=bulanIni();
-var mingguAktif='m1';
+var tglPilih=tanggalIni();
 
-function namMinggu(mg){return 'Minggu '+mg.slice(1)}
 function bulanIni(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
 function namBulan(k){var p=(k||'').split('-');return NAMA_BULAN[Number(p[1])-1]+' '+p[0]}
-function mingguIni(){return 'm'+Math.min(5,Math.max(1,Math.floor((new Date().getDate()-1)/7)+1))}
-
-function hariHariIni(){
-  var d=new Date().getDay(); /* 0=Min .. 6=Sab */
-  return HARI[d-1]||null;    /* 1=Sen..6=Sab; 0=Min -> null */
+function kunciTanggal(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function tanggalIni(){return kunciTanggal(new Date())}
+function tanggalLegkap(k){
+  var p=String(k||'').split('-');
+  if(p.length<3)return namBulan(bulanAktif);
+  var d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));
+  return NAMA_HARI_KEPANG[d.getDay()]+', '+Number(p[2])+' '+NAMA_BULAN[Number(p[1])-1]+' '+p[0];
 }
+function getJadwalTgl(k){return db.jadwal[k]||[]}
 
-/* Konversi data jadwal lama (per hari / per minggu) menjadi per bulan agar tak hilang */
+/* Konversi data jadwal lama (per minggu / per bulan) → kosongkan agar tak merusak format baru */
 function pastikanJadwal(){
   var j=db.jadwal||{};db.jadwal=j;
-  var kunci=Object.keys(j);
-  var lamaHari=kunci.some(function(k){return HARI.indexOf(k)>-1&&Array.isArray(j[k])});
-  var lamaMinggu=kunci.some(function(k){return /^m[1-5]$/.test(k)});
-  if(!lamaHari&&!lamaMinggu)return;
-  var bl=bulanIni(),out={};out[bl]={};
-  MINGGU.forEach(function(m){
-    out[bl][m]={};
-    HARI.forEach(function(h){
-      var src=lamaHari?(j[h]):((lamaMinggu&&j[m])?j[m][h]:null);
-      out[bl][m][h]=Array.isArray(src)?src.slice():[];
-    });
-  });
-  db.jadwal=out;save();
+  var adaLama=Object.keys(j).some(function(k){return /^\d{4}-\d{2}$/.test(k)||/^m[1-5]$/.test(k)});
+  if(adaLama){db.jadwal={};save()}
 }
-
-function getJadwal(bulan,mg,h){pastikanJadwal();return (((db.jadwal[bulan]||{})[mg])||{})[h]||[]}
 
 function gantiBulan(s){
   var p=bulanAktif.split('-'),d=new Date(Number(p[0]),Number(p[1])-1+s,1);
   bulanAktif=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
-  renderBulanNav();renderMingguTabs();renderJadwalGrid();
+  tglPilih=bulanAktif===bulanIni()?tanggalIni():(bulanAktif+'-01');
+  renderBulanNav();renderJadwalKal();renderEditorJadwal();
 }
 
 function namaSiswa(id){
@@ -247,68 +244,79 @@ function renderBulanNav(){
     '<button type="button" class="bulan-btn" data-bulan="1" title="Bulan berikutnya">&#8250;</button>';
 }
 
-function renderMingguTabs(){
-  var el=$('#mingguTabs');if(!el)return;
-  el.innerHTML=MINGGU.map(function(m){
-    return '<button type="button" class="minggu-tab'+(m===mingguAktif?' aktif':'')+'" data-minggu="'+m+'">'+namMinggu(m)+'</button>';
-  }).join('');
-}
-
-function renderJadwalGrid(){
-  var el=$('#jadwalGrid');
+function renderJadwalKal(){
+  var el=$('#kalGrid');if(!el)return;
   if(!db.students.length){
     el.innerHTML='<div class="empty">Belum ada siswa. Tambahkan siswa di tab Data Siswa terlebih dahulu.</div>';
     return;
   }
-  var hariIni=(bulanAktif===bulanIni()&&mingguAktif===mingguIni())?hariHariIni():null;
-  el.innerHTML=HARI.map(function(h){
-    var arr=getJadwal(bulanAktif,mingguAktif,h);
-    var isToday=h===hariIni;
-    return '<div class="jadwal-hari'+(isToday?' today':'')+'">'+
-      '<div class="jadwal-nama">'+NAMA_HARI[h]+(isToday?'<small>&#9733; Hari ini</small>':'')+'</div>'+
-      '<select data-hari="'+h+'" data-slot="0">'+opsiSiswa(arr[0])+'</select>'+
-      '<select data-hari="'+h+'" data-slot="1">'+opsiSiswa(arr[1])+'</select>'+
+  var th=Number(bulanAktif.split('-')[0]),bu=Number(bulanAktif.split('-')[1])-1;
+  var jml=new Date(th,bu+1,0).getDate();
+  var tglIni=tanggalIni();
+  var offset=(new Date(th,bu,1).getDay()+6)%7;
+  var h='<div class="kal-head"><span>Sen</span><span>Sel</span><span>Rab</span><span>Kam</span><span>Jum</span><span>Sab</span><span>Min</span></div>';
+  var sel=[];
+  for(var i=0;i<offset;i++)sel.push('<div class="kal-sel kosong"></div>');
+  for(var d=1;d<=jml;d++){
+    var dt=new Date(th,bu,d);
+    var dow=dt.getDay();
+    var k=th+'-'+String(bu+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    if(dow===0){
+      sel.push('<div class="kal-sel minggu"><span class="kal-angka">'+d+'</span><span class="kal-nama"><i>libur</i></span></div>');
+    }else{
+      var arr=getJadwalTgl(k);
+      var n0=namaSiswa(arr[0]),n1=namaSiswa(arr[1]);
+      var isIni=k===tglIni,isPilih=k===tglPilih;
+      sel.push('<div class="kal-sel'+(isIni?' ini':'')+(isPilih?' pilih':'')+(dow===6?' sab':'')+'" data-tgl="'+k+'">'+
+        '<span class="kal-angka">'+d+'</span>'+
+        '<span class="kal-nama">'+(n0?esc(n0.split(' ')[0]):'<i>&mdash;</i>')+(n1?'<br>'+esc(n1.split(' ')[0]):'')+'</span>'+
+      '</div>');
+    }
+  }
+  h+='<div class="kal-body">'+sel.join('')+'</div>';
+  el.innerHTML=h;
+}
+
+function renderEditorJadwal(){
+  var el=$('#editorJadwal');if(!el)return;
+  var arr=getJadwalTgl(tglPilih);
+  el.innerHTML='<div class="editor-tgl">'+tanggalLegkap(tglPilih)+'</div>'+
+    '<select data-edit="0">'+opsiSiswa(arr[0])+'</select>'+
+    '<select data-edit="1">'+opsiSiswa(arr[1])+'</select>'+
+    '<div class="actions" style="margin:0">'+
+      '<button class="btn primary" id="btnSimpanTgl">Simpan Petugas</button>'+
+      '<button class="btn soft" id="btnKosongTgl">Kosongkan</button>'+
     '</div>';
-  }).join('');
+}
+
+function simpanJadwalTgl(){
+  var a=$('select[data-edit="0"]'),b=$('select[data-edit="1"]');
+  if(!a||!b)return;
+  db.jadwal[tglPilih]=[a.value,b.value];
+  save();renderJadwalKal();renderEditorJadwal();renderHariPetugas();
+  alert('Petugas untuk '+tanggalLegkap(tglPilih)+' tersimpan.');
+}
+
+function kosongkanJadwalTgl(){
+  if(!confirm('Kosongkan petugas pada '+tanggalLegkap(tglPilih)+'?'))return;
+  delete db.jadwal[tglPilih];
+  save();renderJadwalKal();renderEditorJadwal();renderHariPetugas();
 }
 
 function renderHariPetugas(){
-  var el=$('#hariPetugas');
-  if(!el)return;
-  var bl=bulanIni(),mg=mingguIni();
-  var h=hariHariIni();
-  if(!h){
+  var el=$('#hariPetugas');if(!el)return;
+  var d=new Date();
+  if(d.getDay()===0){
     el.innerHTML='<b>Hari ini:</b> <span class="empty-jadwal">Ahad / libur - tidak ada jadwal piket</span>';
     return;
   }
-  var arr=getJadwal(bl,mg,h).filter(function(id){return id});
+  var arr=getJadwalTgl(tanggalIni()).filter(function(id){return id});
   var nama=arr.map(namaSiswa).filter(function(n){return n});
-  el.innerHTML='<b>Petugas piket hari ini ('+NAMA_HARI[h]+' &middot; '+namMinggu(mg)+' &middot; '+namBulan(bl)+'):</b> '+
+  el.innerHTML='<b>Petugas piket hari ini ('+tanggalLegkap(tanggalIni())+'):</b> '+
     (nama.length?'<span>'+nama.map(function(n){return '&#128104;&#8205;&#128187; '+esc(n)}).join(' &amp; ')+'</span>':'<span class="empty-jadwal">Belum diatur. Klik tombol &#128197; Jadwal di atas.</span>');
 }
 
-function simpanJadwal(){
-  pastikanJadwal();
-  if(!db.jadwal[bulanAktif])db.jadwal[bulanAktif]={};
-  if(!db.jadwal[bulanAktif][mingguAktif])db.jadwal[bulanAktif][mingguAktif]={};
-  HARI.forEach(function(h){
-    var a=$('select[data-hari="'+h+'"][data-slot="0"]');
-    var b=$('select[data-hari="'+h+'"][data-slot="1"]');
-    if(a&&b)db.jadwal[bulanAktif][mingguAktif][h]=[a.value,b.value];
-  });
-  save();
-  renderJadwalGrid();renderHariPetugas();
-  alert('Jadwal piket '+namMinggu(mingguAktif)+' '+namBulan(bulanAktif)+' tersimpan.');
-}
-
-function kosongkanJadwal(){
-  if(!confirm('Kosongkan jadwal piket '+namMinggu(mingguAktif)+' '+namBulan(bulanAktif)+'?'))return;
-  if(!db.jadwal[bulanAktif])db.jadwal[bulanAktif]={};
-  db.jadwal[bulanAktif][mingguAktif]={};
-  save();renderJadwalGrid();renderHariPetugas();
-}
-
-function bukaJadwal(){pastikanJadwal();renderBulanNav();renderMingguTabs();renderJadwalGrid();$('#modalJadwal').classList.add('buka')}
+function bukaJadwal(){pastikanJadwal();renderBulanNav();renderJadwalKal();renderEditorJadwal();$('#modalJadwal').classList.add('buka')}
 function tutupJadwal(){$('#modalJadwal').classList.remove('buka')}
 
 function csv(){var rows=[['Nama','NIS','Kelas','Jurusan','Jumlah Menuju Apresiasi','Poin Apresiasi']];sorted().forEach(function(s){rows.push([s.nama,s.nis||'',s.kelas||'',s.jurusan||'',morningCount(s.id),db.poin[s.id]||0])});var text='\uFEFF'+rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(';')}).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.download='papan-apresiasi-siswa-pagi.csv';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},500)}
@@ -404,18 +412,22 @@ function renderPiagam(){
   if(!s){el.innerHTML='<div class="empty">Pilih siswa terlebih dahulu.</div>';return}
   var po=db.poin[s.id]||0;
   var nama=s.nama.split(' ').map(function(w){return w.charAt(0).toUpperCase()+w.slice(1)}).join(' ');
+  var judul=el.querySelector('.cert-title')?el.querySelector('.cert-title').textContent:'Piagam Penghargaan';
+  var org=el.querySelector('.cert-org')?el.querySelector('.cert-org').textContent:'Organisasi Siswa Intra Sekolah';
+  var isi=el.querySelector('.cert-text')?el.querySelector('.cert-text').innerHTML:'atas dedikasinya sebagai siswa yang konsisten datang paling pagi dan berhasil mengumpulkan <b>'+po+' poin apresiasi</b> dalam Program Kerja OSIS &ldquo;Berangkat Pagi&rdquo;. Teruslah berprestasi!';
+  var ttd=el.querySelector('.cert-sign-label')?el.querySelector('.cert-sign-label').textContent:'Ketua OSIS';
   el.innerHTML='<div class="cert-inner">'+
     '<img class="cert-logo" src="../assets/images/logo-osis.png" alt="Logo OSIS" onerror="this.style.display=\'none\'">'+
-    '<div class="cert-org">Organisasi Siswa Intra Sekolah</div>'+
-    '<div class="cert-title">Piagam Penghargaan</div>'+
+    '<div class="cert-org" contenteditable="true" data-field="org">'+esc(org)+'</div>'+
+    '<div class="cert-title" contenteditable="true" data-field="title">'+esc(judul)+'</div>'+
     '<div class="cert-line">&#9670; &#8212; &#9670;</div>'+
     '<div class="cert-label">Diberikan kepada</div>'+
-    '<div class="cert-name">'+esc(nama)+'</div>'+
-    '<div class="cert-class">'+(s.kelas?'Siswa Kelas '+esc(s.kelas):'')+'</div>'+
-    '<p class="cert-text">atas dedikasinya sebagai siswa yang konsisten datang paling pagi dan berhasil mengumpulkan <b>'+po+' poin apresiasi</b> dalam Program Kerja OSIS &ldquo;Berangkat Pagi&rdquo;. Teruslah berprestasi!</p>'+
+    '<div class="cert-name" contenteditable="true" data-field="name">'+esc(nama)+'</div>'+
+    '<div class="cert-class" contenteditable="true" data-field="kelas">'+(s.kelas?'Siswa Kelas '+esc(s.kelas):'')+'</div>'+
+    '<p class="cert-text" contenteditable="true" data-field="isi">'+isi+'</p>'+
     '<div class="cert-foot">'+
       '<div class="cert-date">'+tanggalPenuh(new Date())+'</div>'+
-      '<div class="cert-sign"><div class="cert-sign-line"></div>Ketua OSIS</div>'+
+      '<div class="cert-sign"><div class="cert-sign-line"></div><span class="cert-sign-label" contenteditable="true" data-field="ttd">'+esc(ttd)+'</span></div>'+
     '</div>'+
   '</div>';
 }
@@ -455,7 +467,7 @@ function ledakkan(){
   })();
 }
 
-document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});$('#studentForm').addEventListener('submit',submitStudent);$('#cancelBtn').addEventListener('click',resetForm);$('#studentSearch').addEventListener('input',renderStudents);$('#dateInput').addEventListener('change',renderMorning);$('#todayBtn').addEventListener('click',function(){$('#dateInput').value=today();renderMorning()});$('#morningSearch').addEventListener('input',renderMorning);$('#resetMorningBtn').addEventListener('click',resetMorning);$('#boardSearch').addEventListener('input',renderBoard);$('#resetBoardBtn').addEventListener('click',resetBoard);$('#csvBtn').addEventListener('click',csv);$('#backupBtn').addEventListener('click',backupData);$('#restoreBtn').addEventListener('click',bukaRestore);$('#restoreFile').addEventListener('change',pilihFile);$('#importBtn').addEventListener('click',function(){var f=$('#importFile');if(!f.files.length)f.click()});$('#importFile').addEventListener('change',pilihImport);  $('#btnBukaJadwal').addEventListener('click',bukaJadwal);$('#btnTutupJadwal').addEventListener('click',tutupJadwal);$('#btnSimpanJadwal').addEventListener('click',simpanJadwal);$('#btnKosongkan').addEventListener('click',kosongkanJadwal);$('#modalJadwal').addEventListener('click',function(e){if(e.target===$('#modalJadwal'))tutupJadwal()});document.addEventListener('click',function(e){var t=e.target.closest('.minggu-tab');if(t){mingguAktif=t.dataset.minggu;renderMingguTabs();renderJadwalGrid()}else{var b=e.target.closest('.bulan-btn');if(b)gantiBulan(Number(b.dataset.bulan))}});document.addEventListener('keydown',function(e){if(e.key==='Escape'){tutupJadwal();tutupPiagam()}});$('#piagamBtn').addEventListener('click',bukaPiagam);$('#btnTutupPiagam').addEventListener('click',tutupPiagam);$('#btnCetakPiagam').addEventListener('click',function(){window.print()});$('#piagamSiswa').addEventListener('change',renderPiagam);$('#modalPiagam').addEventListener('click',function(e){if(e.target===$('#modalPiagam'))tutupPiagam()});$('#dateInput').value=today();renderStudents();renderMorning();renderBoard();renderHariPetugas();
+document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});$('#studentForm').addEventListener('submit',submitStudent);$('#cancelBtn').addEventListener('click',resetForm);$('#studentSearch').addEventListener('input',renderStudents);$('#dateInput').addEventListener('change',renderMorning);$('#todayBtn').addEventListener('click',function(){$('#dateInput').value=today();renderMorning()});$('#morningSearch').addEventListener('input',renderMorning);$('#resetMorningBtn').addEventListener('click',resetMorning);$('#boardSearch').addEventListener('input',renderBoard);$('#resetBoardBtn').addEventListener('click',resetBoard);$('#csvBtn').addEventListener('click',csv);$('#backupBtn').addEventListener('click',backupData);$('#restoreBtn').addEventListener('click',bukaRestore);$('#restoreFile').addEventListener('change',pilihFile);$('#importBtn').addEventListener('click',function(){var f=$('#importFile');if(!f.files.length)f.click()});$('#importFile').addEventListener('change',pilihImport);  $('#btnBukaJadwal').addEventListener('click',bukaJadwal);$('#btnTutupJadwal').addEventListener('click',tutupJadwal);$('#modalJadwal').addEventListener('click',function(e){if(e.target===$('#modalJadwal'))tutupJadwal()});document.addEventListener('click',function(e){var t=e.target.closest('.kal-sel[data-tgl]');if(t){tglPilih=t.dataset.tgl;renderJadwalKal();renderEditorJadwal()}else{var b=e.target.closest('.bulan-btn');if(b)gantiBulan(Number(b.dataset.bulan))}});$('#editorJadwal').addEventListener('click',function(e){if(e.target.id==='btnSimpanTgl')simpanJadwalTgl();if(e.target.id==='btnKosongTgl')kosongkanJadwalTgl()});document.addEventListener('keydown',function(e){if(e.key==='Escape'){tutupJadwal();tutupPiagam()}});$('#piagamBtn').addEventListener('click',bukaPiagam);$('#btnTutupPiagam').addEventListener('click',tutupPiagam);$('#btnCetakPiagam').addEventListener('click',function(){window.print()});$('#piagamSiswa').addEventListener('change',renderPiagam);$('#modalPiagam').addEventListener('click',function(e){if(e.target===$('#modalPiagam'))tutupPiagam()});$('#dateInput').value=today();renderStudents();renderMorning();renderBoard();renderHariPetugas();
 </script>
 </body>
 </html>
