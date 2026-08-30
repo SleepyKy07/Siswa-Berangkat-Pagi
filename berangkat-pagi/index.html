@@ -28,6 +28,35 @@ body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:linear
 .modal-close{border:none;background:#f0fdfa;color:var(--primary-dark);font-size:1.4rem;line-height:1;width:34px;height:34px;border-radius:50%;cursor:pointer}
 .modal-close:hover{background:#d9f3ee}
 .modal-sub{font-size:.8rem;color:var(--muted);margin-bottom:14px}
+.bulan-nav{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.bulan-label{flex:1;text-align:center;font-weight:800;color:var(--primary-dark);font-size:.92rem}
+.bulan-btn{border:1.5px solid var(--line);background:#fff;color:var(--primary);border-radius:10px;width:36px;height:36px;font-size:1.1rem;line-height:1;cursor:pointer;transition:.18s}
+.bulan-btn:hover{border-color:var(--primary);background:#f0fdfa}
+/* Piagam penghargaan */
+.cert{position:relative;background:#fffdf4;border:3px double #b45309;padding:30px 28px;margin-top:16px;border-radius:4px}
+.cert-inner{position:relative;text-align:center;border:1px solid #eab308;outline:1px solid #eab308;outline-offset:-9px;padding:22px 18px}
+.cert-logo{width:58px;height:58px;object-fit:contain;margin:0 auto 6px;display:block}
+.cert-org{font-size:.66rem;letter-spacing:.32em;color:#92400e;font-weight:800;text-transform:uppercase}
+.cert-title{font-size:1.55rem;font-weight:900;color:#92400e;letter-spacing:.12em;text-transform:uppercase;margin:10px 0 4px;font-family:Georgia,'Times New Roman',serif}
+.cert-line{color:#d97706;font-size:1rem;letter-spacing:.5em;margin-bottom:10px}
+.cert-label{font-size:.74rem;letter-spacing:.22em;color:#92400e;text-transform:uppercase;font-weight:700}
+.cert-name{font-size:1.85rem;font-weight:900;color:#134e4a;margin:6px 0 2px;font-family:Georgia,'Times New Roman',serif}
+.cert-class{font-size:.85rem;color:#78350f;font-weight:700}
+.cert-text{max-width:430px;margin:14px auto 0;font-size:.78rem;line-height:1.6;color:#57534e}
+.cert-text b{color:#92400e}
+.cert-foot{display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px;padding:0 12px}
+.cert-date{font-size:.74rem;color:#57534e}
+.cert-sign{text-align:center;font-size:.74rem;color:#57534e}
+.cert-sign-line{width:150px;height:1px;background:#a8a29e;margin-bottom:4px}
+@media print{
+  body *{visibility:hidden !important}
+  #modalPiagam,#modalPiagam *{visibility:visible !important}
+  #modalPiagam{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#fff;padding:0;z-index:9999}
+  #modalPiagam .modal-box{max-width:none;width:100%;height:100%;max-height:none;padding:0;box-shadow:none;background:#fff;display:flex;align-items:center;justify-content:center}
+  #modalPiagam .modal-head,#modalPiagam .modal-sub,#modalPiagam .modal-aksi,#modalPiagam .modal-close,#modalPiagam select{display:none}
+  .cert{margin:0;border-radius:0}
+  @page{size:A4 landscape;margin:10mm}
+}
 .minggu-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
 .minggu-tab{border:1.5px solid var(--line);background:#fff;color:var(--muted);border-radius:10px;padding:8px 13px;font:700 .8rem inherit;cursor:pointer;transition:.18s}
 .minggu-tab.aktif{border-color:var(--primary);color:#fff;background:var(--primary)}
@@ -78,15 +107,15 @@ main{max-width:1100px;margin:18px auto;padding:0 14px}.tab{display:none}.tab.act
 <section id="tab-siswa" class="tab active">
 <div class="card"><h2 id="formTitle">Tambah Data Siswa</h2><form id="studentForm"><div class="grid">
 <label>Nama Lengkap *<input id="nama" required placeholder="Contoh: Budi Santoso"></label><label>NIS<input id="nis" placeholder="Contoh: 2026001"></label><label>Kelas<input id="kelas" placeholder="Contoh: VII-A"></label><label>Jenis Kelamin<select id="jk"><option value="L">Laki-laki</option><option value="P">Perempuan</option></select></label><label>Jurusan<input id="jurusan" placeholder="Contoh: RPL"></label><label>No. HP Orang Tua<input id="telp" type="tel" placeholder="08xxxxxxxxxx"></label><label class="full">Alamat<textarea id="alamat" rows="2" placeholder="Alamat lengkap siswa"></textarea></label></div><div class="actions"><button class="btn primary" id="saveBtn">Simpan Siswa</button><button type="button" class="btn soft" id="cancelBtn" hidden>Batal Edit</button></div></form></div>
-<div class="card"><div class="section-head"><h2>Daftar Siswa (<span id="studentCount">0</span>)</h2><input class="search" id="studentSearch" placeholder="Cari nama, NIS, atau kelas"></div><div class="table-wrap student-table"><table><thead><tr><th>No</th><th>Nama</th><th>NIS</th><th>Kelas</th><th>Jurusan</th><th>Kontak</th><th>Aksi</th></tr></thead><tbody id="studentTable"></tbody></table></div><div class="student-table-list" id="studentMobileList"></div></div>
+<div class="card"><div class="section-head"><h2>Daftar Siswa (<span id="studentCount">0</span>)</h2><input class="search" id="studentSearch" placeholder="Cari nama, NIS, atau kelas"><div class="actions" style="margin:0"><button class="btn soft small" id="importBtn" title="Import banyak siswa dari file CSV/Excel. Format kolom: Nama, NIS, Kelas, Jurusan, JK (L/P), Telp, Alamat. Baris pertama boleh berisi nama kolom. Siswa dengan NIS sama otomatis dilewati.">&#11015; Import Siswa</button><input type="file" id="importFile" accept=".csv,.txt,text/csv" hidden></div></div><div class="table-wrap student-table"><table><thead><tr><th>No</th><th>Nama</th><th>NIS</th><th>Kelas</th><th>Jurusan</th><th>Kontak</th><th>Aksi</th></tr></thead><tbody id="studentTable"></tbody></table></div><div class="student-table-list" id="studentMobileList"></div></div>
 </section>
 <section id="tab-pagi" class="tab">
 <div class="card"><div class="section-head"><h2>Catat Siswa Pagi</h2><div class="actions" style="margin:0"><span class="tag">1 siswa per tanggal</span><button class="btn btn-reset small" id="resetMorningBtn">Reset Catatan</button></div></div><div class="date-row"><label>Tanggal<input type="date" id="dateInput"></label><button class="btn primary" id="todayBtn">Hari Ini</button></div><p class="notice" style="margin-top:14px">Pilih satu siswa yang datang paling pagi. Setiap <strong>2 kali tercatat</strong>, siswa otomatis mendapat 1 poin apresiasi dan efek khusus &#127881;.</p><div class="hari-petugas" style="margin-top:14px" id="hariPetugas"></div><div class="stats" style="margin-top:14px" id="dailyStats"></div></div>
 <div class="card"><div class="section-head"><h2>Pilih Siswa</h2><input class="search" id="morningSearch" placeholder="Cari siswa"></div><div class="student-grid" id="morningList"></div></div>
 </section>
 <section id="tab-papan" class="tab">
-<div class="card"><div class="section-head"><h2>Papan Apresiasi</h2><div class="actions" style="margin:0"><button class="btn btn-reset small" id="resetBoardBtn">Reset Papan</button><button class="btn primary small" id="csvBtn">Ekspor CSV</button></div></div><div class="stats" id="boardStats"></div></div>
-<div class="card"><div class="section-head"><h2>Peringkat Poin</h2><input class="search" id="boardSearch" placeholder="Cari siswa"></div><div class="rank-list" id="leaderboard"></div></div>
+<div class="card"><div class="section-head"><h2>Papan Apresiasi</h2><div class="actions" style="margin:0"><button class="btn soft small" id="backupBtn" title="Unduh cadangan data ke file JSON">&#128190; Cadangkan</button><button class="btn soft small" id="restoreBtn" title="Muat ulang data dari file cadangan">&#128194; Pulihkan</button><button class="btn btn-reset small" id="resetBoardBtn">Reset Papan</button><button class="btn primary small" id="csvBtn">Ekspor CSV</button></div></div><div class="stats" id="boardStats"></div><input type="file" id="restoreFile" accept=".json,application/json" hidden></div>
+<div class="card"><div class="section-head"><h2>Peringkat Poin</h2><input class="search" id="boardSearch" placeholder="Cari siswa"><div class="actions" style="margin:0"><button class="btn soft small" id="piagamBtn" title="Buat piagam penghargaan untuk siswa">&#127891; Piagam</button></div></div><div class="rank-list" id="leaderboard"></div></div>
 <div class="card"><h2>Riwayat Siswa Pagi</h2><div class="history" id="history"></div></div>
 </section>
 </main>
@@ -99,6 +128,7 @@ main{max-width:1100px;margin:18px auto;padding:0 14px}.tab{display:none}.tab.act
       <button class="modal-close" id="btnTutupJadwal">&times;</button>
     </div>
     <p class="modal-sub">Pilih 2 anggota OSIS untuk setiap hari, sesuai minggu piket. Data diambil dari daftar siswa.</p>
+    <div class="bulan-nav" id="bulanNav"></div>
     <div class="minggu-tabs" id="mingguTabs"></div>
     <div class="jadwal-grid" id="jadwalGrid"></div>
     <div class="modal-aksi">
@@ -109,6 +139,22 @@ main{max-width:1100px;margin:18px auto;padding:0 14px}.tab{display:none}.tab.act
 </div>
 
 <canvas id="cvKonfet"></canvas>
+
+<!-- Modal piagam penghargaan -->
+<div class="modal-overlay" id="modalPiagam">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>&#127891; Piagam Penghargaan</h3>
+      <button class="modal-close" id="btnTutupPiagam">&times;</button>
+    </div>
+    <p class="modal-sub">Pilih siswa, lalu cetak atau simpan sebagai PDF.</p>
+    <select id="piagamSiswa"></select>
+    <div class="cert" id="certArea"></div>
+    <div class="modal-aksi">
+      <button class="btn primary" id="btnCetakPiagam">&#128424; Cetak / Simpan PDF</button>
+    </div>
+  </div>
+</div>
 
 <script>
 'use strict';
@@ -139,28 +185,46 @@ function resetBoard(){if(!Object.keys(db.pagi).length&&!Object.keys(db.poin).len
 /* ================= JADWAL PIKET OSIS ================= */
 var HARI=['senin','selasa','rabu','kamis','jumat','sabtu'];
 var NAMA_HARI={senin:'Senin',selasa:'Selasa',rabu:'Rabu',kamis:'Kamis',jumat:'Jumat',sabtu:'Sabtu'};
-var MINGGU=['m1','m2','m3','m4'];
+var NAMA_BULAN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+var MINGGU=['m1','m2','m3','m4','m5'];
+var bulanAktif=bulanIni();
 var mingguAktif='m1';
 
 function namMinggu(mg){return 'Minggu '+mg.slice(1)}
-function mingguIni(){return 'm'+Math.min(4,Math.max(1,Math.floor((new Date().getDate()-1)/7)+1))}
+function bulanIni(){var d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
+function namBulan(k){var p=(k||'').split('-');return NAMA_BULAN[Number(p[1])-1]+' '+p[0]}
+function mingguIni(){return 'm'+Math.min(5,Math.max(1,Math.floor((new Date().getDate()-1)/7)+1))}
 
 function hariHariIni(){
   var d=new Date().getDay(); /* 0=Min .. 6=Sab */
   return HARI[d-1]||null;    /* 1=Sen..6=Sab; 0=Min -> null */
 }
 
-/* Konversi data jadwal lama (per hari) menjadi per minggu agar tak hilang */
+/* Konversi data jadwal lama (per hari / per minggu) menjadi per bulan agar tak hilang */
 function pastikanJadwal(){
   var j=db.jadwal||{};db.jadwal=j;
-  var lama=Object.keys(j).some(function(k){return HARI.indexOf(k)>-1&&Array.isArray(j[k])});
-  if(!lama)return;
-  var base={};HARI.forEach(function(h){if(Array.isArray(j[h]))base[h]=j[h].slice()});
-  var out={};MINGGU.forEach(function(m){out[m]={};HARI.forEach(function(h){out[m][h]=base[h]?base[h].slice():[]})});
+  var kunci=Object.keys(j);
+  var lamaHari=kunci.some(function(k){return HARI.indexOf(k)>-1&&Array.isArray(j[k])});
+  var lamaMinggu=kunci.some(function(k){return /^m[1-5]$/.test(k)});
+  if(!lamaHari&&!lamaMinggu)return;
+  var bl=bulanIni(),out={};out[bl]={};
+  MINGGU.forEach(function(m){
+    out[bl][m]={};
+    HARI.forEach(function(h){
+      var src=lamaHari?(j[h]):((lamaMinggu&&j[m])?j[m][h]:null);
+      out[bl][m][h]=Array.isArray(src)?src.slice():[];
+    });
+  });
   db.jadwal=out;save();
 }
 
-function getJadwal(mg,h){pastikanJadwal();return ((db.jadwal[mg])||{})[h]||[]}
+function getJadwal(bulan,mg,h){pastikanJadwal();return (((db.jadwal[bulan]||{})[mg])||{})[h]||[]}
+
+function gantiBulan(s){
+  var p=bulanAktif.split('-'),d=new Date(Number(p[0]),Number(p[1])-1+s,1);
+  bulanAktif=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+  renderBulanNav();renderMingguTabs();renderJadwalGrid();
+}
 
 function namaSiswa(id){
   if(!id)return '';
@@ -176,6 +240,13 @@ function opsiSiswa(idPilih){
   return o;
 }
 
+function renderBulanNav(){
+  var el=$('#bulanNav');if(!el)return;
+  el.innerHTML='<button type="button" class="bulan-btn" data-bulan="-1" title="Bulan sebelumnya">&#8249;</button>'+
+    '<span class="bulan-label">'+(bulanAktif===bulanIni()?'&#9733; ':'')+namBulan(bulanAktif)+'</span>'+
+    '<button type="button" class="bulan-btn" data-bulan="1" title="Bulan berikutnya">&#8250;</button>';
+}
+
 function renderMingguTabs(){
   var el=$('#mingguTabs');if(!el)return;
   el.innerHTML=MINGGU.map(function(m){
@@ -189,9 +260,9 @@ function renderJadwalGrid(){
     el.innerHTML='<div class="empty">Belum ada siswa. Tambahkan siswa di tab Data Siswa terlebih dahulu.</div>';
     return;
   }
-  var hariIni=(mingguAktif===mingguIni())?hariHariIni():null;
+  var hariIni=(bulanAktif===bulanIni()&&mingguAktif===mingguIni())?hariHariIni():null;
   el.innerHTML=HARI.map(function(h){
-    var arr=getJadwal(mingguAktif,h);
+    var arr=getJadwal(bulanAktif,mingguAktif,h);
     var isToday=h===hariIni;
     return '<div class="jadwal-hari'+(isToday?' today':'')+'">'+
       '<div class="jadwal-nama">'+NAMA_HARI[h]+(isToday?'<small>&#9733; Hari ini</small>':'')+'</div>'+
@@ -204,41 +275,156 @@ function renderJadwalGrid(){
 function renderHariPetugas(){
   var el=$('#hariPetugas');
   if(!el)return;
-  var mg=mingguIni();
+  var bl=bulanIni(),mg=mingguIni();
   var h=hariHariIni();
   if(!h){
     el.innerHTML='<b>Hari ini:</b> <span class="empty-jadwal">Ahad / libur - tidak ada jadwal piket</span>';
     return;
   }
-  var arr=getJadwal(mg,h).filter(function(id){return id});
+  var arr=getJadwal(bl,mg,h).filter(function(id){return id});
   var nama=arr.map(namaSiswa).filter(function(n){return n});
-  el.innerHTML='<b>Petugas piket hari ini ('+NAMA_HARI[h]+' &middot; '+namMinggu(mg)+'):</b> '+
+  el.innerHTML='<b>Petugas piket hari ini ('+NAMA_HARI[h]+' &middot; '+namMinggu(mg)+' &middot; '+namBulan(bl)+'):</b> '+
     (nama.length?'<span>'+nama.map(function(n){return '&#128104;&#8205;&#128187; '+esc(n)}).join(' &amp; ')+'</span>':'<span class="empty-jadwal">Belum diatur. Klik tombol &#128197; Jadwal di atas.</span>');
 }
 
 function simpanJadwal(){
   pastikanJadwal();
-  if(!db.jadwal[mingguAktif])db.jadwal[mingguAktif]={};
+  if(!db.jadwal[bulanAktif])db.jadwal[bulanAktif]={};
+  if(!db.jadwal[bulanAktif][mingguAktif])db.jadwal[bulanAktif][mingguAktif]={};
   HARI.forEach(function(h){
     var a=$('select[data-hari="'+h+'"][data-slot="0"]');
     var b=$('select[data-hari="'+h+'"][data-slot="1"]');
-    if(a&&b)db.jadwal[mingguAktif][h]=[a.value,b.value];
+    if(a&&b)db.jadwal[bulanAktif][mingguAktif][h]=[a.value,b.value];
   });
   save();
   renderJadwalGrid();renderHariPetugas();
-  alert('Jadwal piket '+namMinggu(mingguAktif)+' tersimpan.');
+  alert('Jadwal piket '+namMinggu(mingguAktif)+' '+namBulan(bulanAktif)+' tersimpan.');
 }
 
 function kosongkanJadwal(){
-  if(!confirm('Kosongkan semua jadwal piket pada '+namMinggu(mingguAktif)+'?'))return;
-  db.jadwal[mingguAktif]={};
+  if(!confirm('Kosongkan jadwal piket '+namMinggu(mingguAktif)+' '+namBulan(bulanAktif)+'?'))return;
+  if(!db.jadwal[bulanAktif])db.jadwal[bulanAktif]={};
+  db.jadwal[bulanAktif][mingguAktif]={};
   save();renderJadwalGrid();renderHariPetugas();
 }
 
-function bukaJadwal(){pastikanJadwal();renderMingguTabs();renderJadwalGrid();$('#modalJadwal').classList.add('buka')}
+function bukaJadwal(){pastikanJadwal();renderBulanNav();renderMingguTabs();renderJadwalGrid();$('#modalJadwal').classList.add('buka')}
 function tutupJadwal(){$('#modalJadwal').classList.remove('buka')}
 
 function csv(){var rows=[['Nama','NIS','Kelas','Jurusan','Jumlah Menuju Apresiasi','Poin Apresiasi']];sorted().forEach(function(s){rows.push([s.nama,s.nis||'',s.kelas||'',s.jurusan||'',morningCount(s.id),db.poin[s.id]||0])});var text='\uFEFF'+rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(';')}).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.download='papan-apresiasi-siswa-pagi.csv';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},500)}
+
+function backupData(){
+  var blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json;charset=utf-8'});
+  var a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='cadangan-siswa-pagi-'+today()+'.json';
+  a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href)},500);
+}
+
+function restoreData(f){
+  var r=new FileReader();
+  r.onload=function(){
+    try{
+      var d=JSON.parse(r.result);
+      if(!d||!Array.isArray(d.students)){alert('File cadangan tidak valid.');return}
+      if(!d.pagi)d.pagi={};if(!d.poin)d.poin={};if(!d.hitung)d.hitung={};if(!d.jadwal)d.jadwal={};
+      db=d;save();renderStudents();renderMorning();renderBoard();renderHariPetugas();
+      alert('Data berhasil dipulihkan dari cadangan.');
+    }catch(e){alert('Gagal membaca file: '+e.message)}
+  };
+  r.readAsText(f);
+}
+function bukaRestore(){var inp=$('#restoreFile');if(!inp.files.length)inp.click()}
+function pilihFile(e){if(e.target.files&&e.target.files[0]){if(confirm('Muat cadangan ini? Data saat ini akan diganti.'))restoreData(e.target.files[0]);e.target.value=''}}
+
+/* ---------- Import siswa massal dari CSV ---------- */
+var MAP_KOLOM={nama:'nama',nis:'nis',nipd:'nis',kelas:'kelas',jurusan:'jurusan',jur:'jurusan',jk:'jk',jeniskelamin:'jk',kelamin:'jk',gender:'jk',telp:'telp',telepon:'telp',nohp:'telp',kontak:'telp',alamat:'alamat',almt:'alamat',address:'alamat'};
+var URUTAN_KOLOM=['nama','nis','kelas','jurusan','jk','telp','alamat'];
+function normKey(s){return String(s).toLowerCase().replace(/[^a-z0-9]/g,'')}
+function splitCSV(line,sep){
+  var out=[],cur='',q=false;
+  for(var i=0;i<line.length;i++){
+    var c=line[i];
+    if(q){if(c==='"'){if(line[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}
+    else if(c==='"')q=true;
+    else if(c===sep){out.push(cur);cur=''}
+    else cur+=c;
+  }
+  out.push(cur);
+  return out.map(function(v){return v.trim()});
+}
+function ambilKolom(v,col,f){var idx=(col[f]!==undefined)?col[f]:URUTAN_KOLOM.indexOf(f);return (v[idx]||'').trim()}
+function importSiswa(f){
+  var r=new FileReader();
+  r.onload=function(){
+    try{
+      var lines=String(r.result).split(/\r?\n/).filter(function(l){return l.trim()!==''});
+      if(!lines.length){alert('File kosong.');return}
+      var sep=(lines[0].split(';').length>lines[0].split(',').length)?';':',';
+      var first=splitCSV(lines[0],sep);
+      var col={},isHeader=first.some(function(v){return MAP_KOLOM[normKey(v)]});
+      if(isHeader){
+        first.forEach(function(v,i){var f2=MAP_KOLOM[normKey(v)];if(f2&&col[f2]===undefined)col[f2]=i});
+        if(col.nama===undefined){alert("Kolom 'Nama' tidak ditemukan. Gunakan header: Nama, NIS, Kelas, Jurusan, JK, Telp, Alamat.");return}
+      }
+      var mulai=isHeader?1:0,tambah=0,lewat=0,gagal=0;
+      for(var i=mulai;i<lines.length;i++){
+        var v=splitCSV(lines[i],sep);
+        var nama=ambilKolom(v,col,'nama');
+        if(!nama){gagal++;continue}
+        var nis=ambilKolom(v,col,'nis');
+        if(nis&&db.students.some(function(s){return s.nis&&s.nis===nis})){lewat++;continue}
+        var jk=ambilKolom(v,col,'jk').toLowerCase();
+        db.students.push({id:uid(),nama:nama,nis:nis,kelas:ambilKolom(v,col,'kelas'),jk:(jk==='p'||jk==='perempuan'||jk==='wanita'||jk==='w')?'P':'L',jurusan:ambilKolom(v,col,'jurusan'),telp:ambilKolom(v,col,'telp'),alamat:ambilKolom(v,col,'alamat')});
+        tambah++;
+      }
+      if(tambah)save();
+      renderStudents();renderMorning();renderBoard();
+      alert('Import selesai: '+tambah+' siswa ditambahkan'+(lewat?' · '+lewat+' dilewati (NIS duplikat)':'')+(gagal?' · '+gagal+' baris tanpa nama':'')+'.');
+    }catch(e){alert('Gagal membaca file: '+e.message)}
+  };
+  r.readAsText(f);
+}
+function pilihImport(e){var f=e.target.files&&e.target.files[0];if(f){importSiswa(f);e.target.value=''}}
+
+/* ---------- Piagam penghargaan ---------- */
+function tanggalPenuh(d){return d.getDate()+' '+NAMA_BULAN[d.getMonth()]+' '+d.getFullYear()}
+function isiPilihanPiagam(){
+  var sel=$('#piagamSiswa');if(!sel)return;
+  var cur=sel.value;
+  sel.innerHTML='<option value="">- Pilih Siswa -</option>'+sorted().map(function(s){return '<option value="'+s.id+'">'+esc(s.nama)+(s.kelas?' ('+esc(s.kelas)+')':'')+'</option>'}).join('');
+  if(!cur){var top=sorted().slice().sort(function(a,b){return (db.poin[b.id]||0)-(db.poin[a.id]||0)})[0];cur=top?top.id:''}
+  sel.value=cur;
+  renderPiagam();
+}
+function renderPiagam(){
+  var el=$('#certArea');if(!el)return;
+  var s=db.students.find(function(x){return x.id===$('#piagamSiswa').value});
+  if(!s){el.innerHTML='<div class="empty">Pilih siswa terlebih dahulu.</div>';return}
+  var po=db.poin[s.id]||0;
+  var nama=s.nama.split(' ').map(function(w){return w.charAt(0).toUpperCase()+w.slice(1)}).join(' ');
+  el.innerHTML='<div class="cert-inner">'+
+    '<img class="cert-logo" src="../assets/images/logo-osis.png" alt="Logo OSIS" onerror="this.style.display=\'none\'">'+
+    '<div class="cert-org">Organisasi Siswa Intra Sekolah</div>'+
+    '<div class="cert-title">Piagam Penghargaan</div>'+
+    '<div class="cert-line">&#9670; &#8212; &#9670;</div>'+
+    '<div class="cert-label">Diberikan kepada</div>'+
+    '<div class="cert-name">'+esc(nama)+'</div>'+
+    '<div class="cert-class">'+(s.kelas?'Siswa Kelas '+esc(s.kelas):'')+'</div>'+
+    '<p class="cert-text">atas dedikasinya sebagai siswa yang konsisten datang paling pagi dan berhasil mengumpulkan <b>'+po+' poin apresiasi</b> dalam Program Kerja OSIS &ldquo;Berangkat Pagi&rdquo;. Teruslah berprestasi!</p>'+
+    '<div class="cert-foot">'+
+      '<div class="cert-date">'+tanggalPenuh(new Date())+'</div>'+
+      '<div class="cert-sign"><div class="cert-sign-line"></div>Ketua OSIS</div>'+
+    '</div>'+
+  '</div>';
+}
+function bukaPiagam(){
+  if(!db.students.length){alert('Belum ada siswa. Tambahkan siswa terlebih dahulu.');return}
+  isiPilihanPiagam();
+  $('#modalPiagam').classList.add('buka');
+}
+function tutupPiagam(){$('#modalPiagam').classList.remove('buka')}
 function showTab(name){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===name)});document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.id==='tab-'+name)});if(name==='siswa')renderStudents();if(name==='pagi'){renderMorning();renderHariPetugas()}if(name==='papan')renderBoard()}
 
 /* ---------- Efek khusus: toast + konfeti ---------- */
@@ -269,7 +455,7 @@ function ledakkan(){
   })();
 }
 
-document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});$('#studentForm').addEventListener('submit',submitStudent);$('#cancelBtn').addEventListener('click',resetForm);$('#studentSearch').addEventListener('input',renderStudents);$('#dateInput').addEventListener('change',renderMorning);$('#todayBtn').addEventListener('click',function(){$('#dateInput').value=today();renderMorning()});$('#morningSearch').addEventListener('input',renderMorning);$('#resetMorningBtn').addEventListener('click',resetMorning);$('#boardSearch').addEventListener('input',renderBoard);$('#resetBoardBtn').addEventListener('click',resetBoard);$('#csvBtn').addEventListener('click',csv);  $('#btnBukaJadwal').addEventListener('click',bukaJadwal);$('#btnTutupJadwal').addEventListener('click',tutupJadwal);$('#btnSimpanJadwal').addEventListener('click',simpanJadwal);$('#btnKosongkan').addEventListener('click',kosongkanJadwal);$('#modalJadwal').addEventListener('click',function(e){if(e.target===$('#modalJadwal'))tutupJadwal()});document.addEventListener('click',function(e){var t=e.target.closest('.minggu-tab');if(t){mingguAktif=t.dataset.minggu;renderMingguTabs();renderJadwalGrid()}});document.addEventListener('keydown',function(e){if(e.key==='Escape')tutupJadwal()});$('#dateInput').value=today();renderStudents();renderMorning();renderBoard();renderHariPetugas();
+document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});$('#studentForm').addEventListener('submit',submitStudent);$('#cancelBtn').addEventListener('click',resetForm);$('#studentSearch').addEventListener('input',renderStudents);$('#dateInput').addEventListener('change',renderMorning);$('#todayBtn').addEventListener('click',function(){$('#dateInput').value=today();renderMorning()});$('#morningSearch').addEventListener('input',renderMorning);$('#resetMorningBtn').addEventListener('click',resetMorning);$('#boardSearch').addEventListener('input',renderBoard);$('#resetBoardBtn').addEventListener('click',resetBoard);$('#csvBtn').addEventListener('click',csv);$('#backupBtn').addEventListener('click',backupData);$('#restoreBtn').addEventListener('click',bukaRestore);$('#restoreFile').addEventListener('change',pilihFile);$('#importBtn').addEventListener('click',function(){var f=$('#importFile');if(!f.files.length)f.click()});$('#importFile').addEventListener('change',pilihImport);  $('#btnBukaJadwal').addEventListener('click',bukaJadwal);$('#btnTutupJadwal').addEventListener('click',tutupJadwal);$('#btnSimpanJadwal').addEventListener('click',simpanJadwal);$('#btnKosongkan').addEventListener('click',kosongkanJadwal);$('#modalJadwal').addEventListener('click',function(e){if(e.target===$('#modalJadwal'))tutupJadwal()});document.addEventListener('click',function(e){var t=e.target.closest('.minggu-tab');if(t){mingguAktif=t.dataset.minggu;renderMingguTabs();renderJadwalGrid()}else{var b=e.target.closest('.bulan-btn');if(b)gantiBulan(Number(b.dataset.bulan))}});document.addEventListener('keydown',function(e){if(e.key==='Escape'){tutupJadwal();tutupPiagam()}});$('#piagamBtn').addEventListener('click',bukaPiagam);$('#btnTutupPiagam').addEventListener('click',tutupPiagam);$('#btnCetakPiagam').addEventListener('click',function(){window.print()});$('#piagamSiswa').addEventListener('change',renderPiagam);$('#modalPiagam').addEventListener('click',function(e){if(e.target===$('#modalPiagam'))tutupPiagam()});$('#dateInput').value=today();renderStudents();renderMorning();renderBoard();renderHariPetugas();
 </script>
 </body>
 </html>
