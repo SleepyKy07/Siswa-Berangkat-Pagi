@@ -557,27 +557,70 @@ function renderStatistik(){
   simulate30Days();
 }
 function simulate30Days(){
-  var saved=db.hitung.slice();
-  var tempHita=db.hitung;db.hitung={};
-  var n=db.anggota.filter(function(m){return m.aktif}).length;if(n===0){$('#simulasiHasil').textContent='Tidak ada anggota aktif.';return}
-   var hari=30,nper=db.setting.perHari||2,totalSlots=hari*nper;
-   var pred={};db.anggota.filter(function(m){return m.aktif}).forEach(function(m){pred[m.id]=Math.floor(totalSlots/n)})
-  var sisa=totalSlots%n;if(sisa>0)for(var i=0;i<sisa;i++){var ids=Object.keys(pred).sort()[i];if(ids)pred[ids]++}
+  var saved={};
+  for(var id in db.hitung){saved[id]=db.hitung[id]}
+  db.hitung={};
+  var n=db.anggota.filter(function(m){return m.aktif!==false}).length;
+  if(n===0){$('#simulasiHasil').textContent='Tidak ada anggota aktif.';db.hitung=saved;return}
+  
+  var hari=30;
+  var nper=db.setting.perHari||2;
+  var totalSlots=hari*nper;
+  var pred={};
+  
+  db.anggota.filter(function(m){return m.aktif!==false}).forEach(function(m){
+    pred[m.id]=Math.floor(totalSlots/n);
+  });
+  
+  var sisa=totalSlots%n;
+  if(sisa>0){
+    var sortedIds=Object.keys(pred).sort();
+    for(var i=0;i<sisa;i++){
+      var ids=sortedIds[i];
+      if(ids)pred[ids]++;
+    }
+  }
+  
   var vals=Object.values(pred),mx=Math.max.apply(null,vals),mn=Math.min.apply(null,vals);
+  var avg=totalSlots/n;
+  
   $('#simulasiHasil').textContent='Prediksi distribusi 30 hari: rata-rata '+avg.toFixed(1)+' tugas, maksimal '+mx+', minimal '+mn+', selisih '+((mx-mn)).toFixed(1)+' (semakin kecil semakin baik).';
+  
   db.hitung=saved;
 }
 
 // --- PRINT ---
 function printJadwal(){
-  var bl=blAnAktif,th=Number(bl.split('-')[0]),bu=Number(bl.split('-')[1])-1,jml=new Date(th,bu+1,0).getDate();
+  var bl=bulanAktif;
+  var th=Number(bl.split('-')[0]);
+  var bu=Number(bl.split('-')[1])-1;
+  var jml=new Date(th,bu+1,0).getDate();
+  
   var h='<table class="print-table"><thead><tr><th>Tanggal</th><th>Hari</th><th>Petugas 1</th><th>Petugas 2</th><th>Status</th></tr></thead><tbody>';
-  for(var d=1;d<=jml;d++){var dt=new Date(th,bu,d),isoDt=iso(dt),dow=dt.getDay();
-    if(dow!==0){var en=db.jadwal[isoDt],cmd=en?en.petugas.map(function(id){var nm=db.anggota.find(function(x){return x.id===id});return nm?nm.nama:id}:[]);
-    h+='<tr><td>'+isoDt+'</td><td>'+dateText(isoDt)+'</td><td>'+esc(cmd[0]||'-')+'</td><td>'+esc(cmd[1]||'-')+'</td><td>'+(en?en.status:'belum')+'</td></tr>';}
-  }h+='</tbody></table>';
-  var div=document.createElement('div');div.innerHTML='<div id="printCard">'+h+'</div>';
-  $('main').appendChild(div);window.print();div.remove();
+  
+  for(var d=1;d<=jml;d++){
+    var dt=new Date(th,bu,d);
+    var isoDt=iso(dt);
+    var dow=dt.getDay();
+    
+    if(dow!==0){
+      var en=db.jadwal[isoDt];
+      var cmd=en?en.petugas.map(function(id){
+        var nm=db.anggota.find(function(x){return x.id===id});
+        return nm?nm.nama:id;
+      }):[];
+      
+      h+='<tr><td>'+isoDt+'</td><td>'+dateText(isoDt)+'</td><td>'+esc(cmd[0]||'-')+'</td><td>'+esc(cmd[1]||'-')+'</td><td>'+(en?en.status:'belum')+'</td></tr>';
+    }
+  }
+  
+  h+='</tbody></table>';
+  
+  var div=document.createElement('div');
+  div.innerHTML='<div id="printCard">'+h+'</div>';
+  $('main').appendChild(div);
+  window.print();
+  div.remove();
 }
 
 // --- EVENT LISTENERS ---
