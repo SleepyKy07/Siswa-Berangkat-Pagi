@@ -494,7 +494,6 @@ function simpanEdit(){
   var key=tglPilih,en=db.jadwal[key]={petugas:[],status:'belum'};
   en.petugas=[a.value,b.value];
   en.status='belum';
-  // reset hitung lama
   cmd(en.petugas,1);
   cmd([a.value,b.value],1);
   save();renderKalender();renderEditor();renderStatistik();
@@ -588,7 +587,7 @@ $('#berhalanganForm').addEventListener('submit',function(e){e.preventDefault();t
 $('#formSettings').addEventListener('submit',function(e){e.preventDefault();var setting={
   tglMulai:$('#settingTglMulai').value,perHari:Number($('#settingPerHari').value)||2,
   jamMulai:$('#settingJamMulai').value,jamSelesai:$('#settingJamSelesai').value,
-  hariAktif:[($('#aktifSenin').checked?1:0),$(':checked#aktifSelasa')?[2]:[],$(':checked#aktifRabu')?[3]:[],$(':checked#aktifKamis')?[4]:[],$(':checked#aktifJumat')?[5]:[],$(':checked#aktifSabtu')?[6]:[]].filter(function(x){return x}).flat(),
+  hariAktif:[(($(':checked#aktifSenin')?[1]:[]),$(':checked#aktifSelasa')?[2]:[],$(':checked#aktifRabu')?[3]:[],$(':checked#aktifKamis')?[4]:[],$(':checked#aktifJumat')?[5]:[],$(':checked#aktifSabtu')?[6]:[])].filter(function(x){return x}).flat(),
   hariLibur:$('#settingHariLibur').value
 };
   db.setting=setting;save();renderHeader();$('#modalSettings').classList.remove('buka');toast('Pengaturan tersimpan!');});
