@@ -40,6 +40,15 @@
       status: "Aktif"
     },
     {
+      ikon: "\u{1F6D1}",
+      judul: "Jadwal Petugas Gerbang",
+      deskripsi: "Sistem rotasi adil untuk pengaturan jadwal petugas gerbang sekolah dengan algoritma load balancing.",
+      target: "./jadwal-gerbang/",
+      w1: "#ea580c",
+      w2: "#fb923c",
+      status: "Aktif"
+    },
+    {
       ikon: "\u{1F4CC}",
       judul: "Program Kerja 2",
       deskripsi: "Deskripsi sementara. Silakan ganti dengan tujuan dan kegiatan program kerja yang sebenarnya.",
