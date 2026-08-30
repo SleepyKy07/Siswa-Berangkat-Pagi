@@ -284,7 +284,17 @@ function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){retur
 function today(){var d=new Date();return iso(d)}
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function dateText(k){var p=k.split('-');if(!p.length)return '-';var d=new Date(p[0],Number(p[1])-1,p[2]);return HARI[d.getDay()]+' '+p[2]+' '+NAMA_BULAN[Number(p[1])-1]+' '+p[0]}
-function load(){try{var d=JSON.parse(localStorage.getItem(KEY));if(d&&d.anggota&&d.jadwal&&d.setting){if(!d.berhalangan)d.berhalangan={};if(!d.hitung)d.hitung={};return d}catch(e){}}return {anggota:[],jadwal:{},berhalangan:{},hitung:{},setting:{}}
+// Load data from localStorage
+function load(){
+  try{
+    var d=JSON.parse(localStorage.getItem(KEY));
+    if(d&&d.anggota&&d.jadwal&&d.setting){
+      if(!d.berhalangan)d.berhalangan={};
+      if(!d.hitung)d.hitung={};
+      return d;
+    }
+  }catch(e){} // Silently ignore parse errors
+  return {anggota:[],jadwal:{},berhalangan:{},hitung:{},setting:{}};
 }
 function save(){localStorage.setItem(KEY,JSON.stringify(db))}
 function sortedAnggota(){return db.anggota.slice().sort(function(a,b){return a.nama.localeCompare(b.nama,'id')})}
