@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Jadwal Petugas Gerbang · OSIS</title>
+<title>Jadwal Petugas Gerbang Ã‚Â· OSIS</title>
 <link rel="stylesheet" href="../assets/css/portal.css">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -425,7 +425,7 @@ function importAnggota(f){
         db.anggota.push({id:uid(),nama:nama,aktif:true});tambah++;
       }
       if(tambah)save();renderAnggota();renderHeader();
-      alert('Import selesai: '+tambah+' ditambah'+(gagal?' · '+gagal+' gagal':'')+'.');
+      alert('Import selesai: '+tambah+' ditambah'+(gagal?' Ã‚Â· '+gagal+' gagal':'')+'.');
     }catch(e){alert('Error: '+e.message)}
   };
   r.readAsText(f);
@@ -449,7 +449,7 @@ var bulanAktif=bulanIni();
 function renderBulanNav(){
   var el=$('#bulanNav');if(!el)return;
   el.innerHTML='<button type="button" class="bulan-btn" data-bulan="-1" title="Bulan sebelumnya">&#8249;</button>'
-    +'<span class="bulan-label">'+(bulanAktif===bulanIni()?'★ ':'')+namBulan(bulanAktif)+'</span>'
+    +'<span class="bulan-label">'+(bulanAktif===bulanIni()?'Ã¢Ëœâ€¦ ':'')+namBulan(bulanAktif)+'</span>'
     +'<button type="button" class="bulan-btn" data-bulan="1" title="Bulan berikutnya">&#8250;</button>';
 }
 function renderKalender(){
@@ -503,7 +503,7 @@ function cmd(ids,dir){ids.forEach(function(id){db.hitung[id]=(db.hitung[id]||0)+
 function toast(msg){
   var t=document.querySelector('.toastCard');if(t)t.remove();
   var d=document.createElement('div');d.className='toastCard';
-  d.innerHTML='<b>ℹ️ '+esc(msg)+'</b>';document.body.appendChild(d);
+  d.innerHTML='<b>Ã¢â€žÂ¹Ã¯Â¸Â '+esc(msg)+'</b>';document.body.appendChild(d);
   requestAnimationFrame(function(){d.classList.add('show')});
   setTimeout(function(){d.classList.remove('show');setTimeout(function(){d.remove()},500)},3000);
 }
@@ -540,7 +540,7 @@ function renderStatistik(){
   var stats=db.anggota.filter(function(m){return m.aktif}).map(function(m){return{id:m.id,nama:m.nama,ct:(db.hitung[m.id]||0)}});
   stats.sort(function(a,b){return a.ct-b.ct});
   var max=stats[stats.length-1]?.ct||0,min=stats[0]?.ct||0,selisih=max-min||0;
-  var tagClass='tag suksé',label='ADIL';if(selisih>2){tagClass='tag batal';label='TIDAK ADIL'}else if(selisih>1){tagClass='tag';label='CUKUP ADIL'}
+  var tagClass='tag suksÃƒÂ©',label='ADIL';if(selisih>2){tagClass='tag batal';label='TIDAK ADIL'}else if(selisih>1){tagClass='tag';label='CUKUP ADIL'}
   $('#statTotalAnggota').textContent=total;$('#statTotalHari').textContent=totalHari;$('#statRataRata').textContent=avg.toFixed(1);
   $('#statStatusKeadilan').className='tag '+tagClass;$('#statStatusKeadilan').textContent=label;
   var dis=$('#distributionList');dis.innerHTML=stats.map(function(s){var pct=total?Math.round((s.ct/avg)*100):0;return '<div class="rank"><div class="rank-info"><strong>'+esc(s.nama)+'</strong><span>'+s.ct+' tugas</span></div><div class="progress" style="flex:1;margin-right:8px"><i style="width:'+pct+'%"></i></div></div>';}).join('');
@@ -582,7 +582,6 @@ $('#btnGenerateJadwal').addEventListener('click',function(){
 $('#btnPrint').addEventListener('click',printJadwal);
 $('#modalSettings').addEventListener('click',function(e){if(e.target===$('#modalSettings'))$('#modalSettings').classList.remove('buka')});
 document.addEventListener('click',function(e){var t=e.target.closest('.kal-sel[data-tgl]');if(t){tglPilih=t.dataset.tgl;renderKalender();renderEditor()}else{var b=e.target.closest('.bulan-btn');if(b)gantiBulan(Number(b.dataset.bulan))}});
-$('#btnSaveEdit').addEventListener('click',simpanEdit);
 $('#berhalanganForm').addEventListener('submit',function(e){e.preventDefault();tambahBerhalangan()});
 $('#formSettings').addEventListener('submit',function(e){e.preventDefault();var setting={
   tglMulai:$('#settingTglMulai').value,perHari:Number($('#settingPerHari').value)||2,
@@ -614,7 +613,7 @@ function showTab(name){document.querySelectorAll('.tab-btn').forEach(function(b)
 function renderHeader(){
   var el=$('#headerInfo');if(!el)return;
   var setting=db.setting||{},perHari=setting.perHari||2;
-  el.innerHTML='<span class="header-info">🗓️ <b>'+namBulan(bulanAktif)+'</b> | 👥 '+db.anggota.filter(function(m){return m.aktif}).length+' aktif | ⏰ '+setting.jamMulai+' - '+setting.jamSelesai+'</span>';
+  el.innerHTML='<span class="header-info">Ã°Å¸â€”â€œÃ¯Â¸Â <b>'+namBulan(bulanAktif)+'</b> | Ã°Å¸â€˜Â¥ '+db.anggota.filter(function(m){return m.aktif}).length+' aktif | Ã¢ÂÂ° '+setting.jamMulai+' - '+setting.jamSelesai+'</span>';
 }
 // INIT
 $('.tab-btn.active').click();
