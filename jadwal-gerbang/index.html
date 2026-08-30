@@ -604,12 +604,7 @@ $('#btnBukaSettings').addEventListener('click',function(){
   $('#settingHariLibur').value=db.setting.hariLibur||'';
   $('#modalSettings').classList.add('buka');
 });
-function showTab(name){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===name)});document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.id==='tab-'+name)});
-  if(name==='anggota')renderAnggota();
-  if(name==='jadwal'){renderBulanNav();renderKalender();renderEditor();}
-  if(name==='berhalangan')renderBerhalangan();
-  if(name==='statistik')renderStatistik();
-}
+function showTab(name){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===name)});document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.id==='tab-'+name)});if(name==='anggota')renderAnggota();if(name==='jadwal'){renderBulanNav();renderKalender();renderEditor();}if(name==='berhalangan')renderBerhalangan();if(name==='statistik')renderStatistik();}}
 function renderHeader(){
   var el=$('#headerInfo');if(!el)return;
   var setting=db.setting||{},perHari=setting.perHari||2;
