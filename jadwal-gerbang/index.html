@@ -134,7 +134,7 @@ body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border
 <body>
 <div class="back-bar">
   <a href="../index.html"><span>&#8592;</span> Kembali ke Portal Program Kerja OSIS</a>
-  <button class="btn-jadwal" id="btnBukaSettings">&#9881; Pengaturan</button>
+  <button type="button" class="btn-jadwal" id="btnBukaSettings">&#9881; Pengaturan</button>
 </div>
 <header>
   <div class="inner">
@@ -144,10 +144,10 @@ body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border
   </div>
 </header>
 <nav>
-  <button class="tab-btn active" data-tab="anggota">Daftar Anggota</button>
-  <button class="tab-btn" data-tab="jadwal">Jadwal</button>
-  <button class="tab-btn" data-tab="berhalangan">Berhalangan</button>
-  <button class="tab-btn" data-tab="statistik">Statistik</button>
+  <button type="button" class="tab-btn active" data-tab="anggota">Daftar Anggota</button>
+  <button type="button" class="tab-btn" data-tab="jadwal">Jadwal</button>
+  <button type="button" class="tab-btn" data-tab="berhalangan">Berhalangan</button>
+  <button type="button" class="tab-btn" data-tab="statistik">Statistik</button>
 </nav>
 <main>
   <section id="tab-anggota" class="tab active">
@@ -159,7 +159,7 @@ body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border
           <label>Edit Mode<button type="button" class="btn btn-reset small" id="btnModeEdit" hidden>✏️ Edit Selected</button></label>
         </div>
         <div class="actions">
-          <button type="submit" class="btn primary" id="saveAnggotaBtn">Tambah Anggota</button>
+          <button type="button" class="btn primary" id="saveAnggotaBtn">Tambah Anggota</button>
           <button type="button" class="btn soft" id="resetAnggotaBtn">Reset Form</button>
           <button type="button" class="btn danger small" id="deleteAnggotaBtn" hidden>Hapus Anggota Terpilih</button>
         </div>
@@ -170,8 +170,8 @@ body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border
         <h2>Daftar Anggota (<span id="totalAnggota">0</span>)</h2>
         <input class="search" id="cariAnggota" placeholder="Cari nama...">
         <div class="actions" style="margin:0">
-          <button class="btn primary small" id="exportAnggotaBtn">&#11015; Export CSV</button>
-          <button class="btn soft small" id="importAnggotaBtn">&#8674; Import CSV</button>
+          <button type="button" class="btn primary small" id="exportAnggotaBtn">&#11015; Export CSV</button>
+          <button type="button" class="btn soft small" id="importAnggotaBtn">&#8674; Import CSV</button>
           <input type="file" id="importFile" accept=".csv,.txt,text/csv" hidden>
         </div>
       </div>
@@ -189,8 +189,8 @@ body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border
       <div class="section-head">
         <h2>Jadwal Petugas Gerbang</h2>
         <div class="actions" style="margin:0">
-          <button class="btn primary" id="btnGenerateJadwal">&#128203; Buat Jadwal</button>
-          <button class="btn soft small" id="btnPrint">&#128424; Cetak</button>
+          <button type="button" class="btn primary" id="btnGenerateJadwal">&#128203; Buat Jadwal</button>
+          <button type="button" class="btn soft small" id="btnPrint">&#128424; Cetak</button>
         </div>
       </div>
       <div class="notice" style="margin-bottom: 10px">
@@ -212,7 +212,7 @@ body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border
           <label>Keterangan<textarea id="ketBerhalangan" rows="2" placeholder="Alasan berhalangan (opsional)"></textarea></label>
         </div>
         <div class="actions">
-          <button type="submit" class="btn primary">Tambahkan Berhalangan</button>
+          <button type="button" class="btn primary" id="saveBerhalanganBtn">Tambahkan Berhalangan</button>
         </div>
       </form>
     </div>
@@ -251,7 +251,7 @@ body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border
   <div class="modal-box">
     <div class="modal-head">
       <h3>&#9881; Pengaturan Jadwal</h3>
-      <button class="modal-close" id="btnTutupSettings">&times;</button>
+      <button type="button" class="modal-close" id="btnTutupSettings">&times;</button>
     </div>
     <form id="formSettings">
       <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
@@ -269,7 +269,7 @@ body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border
         <label style="grid-column:1/-1">Hari Libur Khusus <textarea id="settingHariLibur" rows="3" placeholder="Satu tanggal per baris, format YYYY-MM-DD"></textarea></label>
       </div>
       <div class="actions" style="margin-top:16px">
-        <button type="submit" class="btn primary">Simpan Pengaturan</button>
+        <button type="button" class="btn primary" id="saveSettingsBtn">Simpan Pengaturan</button>
       </div>
     </form>
   </div>
@@ -297,10 +297,11 @@ function countAssignment(id){return db.hitung[id]||0}
 
 function generateSchedule(toDateStr){
   if(!db.anggota.length){alert('Tambah anggota terlebih dahulu!');return false;}
+  if(!db.setting.tglMulai||db.setting.tglMulai==='2099-12-31')db.setting.tglMulai=today();
   var startKey = Object.keys(db.jadwal).length?Object.keys(db.jadwal).sort()[0]:db.setting.tglMulai;
-  if(startKey==='2099-12-31')startKey=db.setting.tglMulai||today();
   var current = new Date(startKey);
   var endDate = new Date(toDateStr);
+  if(isNaN(endDate.getTime())||endDate < current){alert('Tanggal akhir tidak valid.');return false;}
   var hariAktif = [false,false,false,false,false,false,false];
   if(db.setting.hariAktif&&db.setting.hariAktif.length){hariAktif=[true,true,true,true,true,true,true];db.setting.hariAktif.forEach(function(x){hariAktif[Number(x)]=true})}
   else hariAktif=[false,true,true,true,true,true,false]; // default Mon-Fri (dow:0=Sun..6=Sat)
@@ -612,7 +613,8 @@ function printJadwal(){
 
 // --- EVENT LISTENERS ---
 document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});
-$('#anggotaForm').addEventListener('submit',tambahAnggota);
+$('#anggotaForm').addEventListener('submit',function(e){e.preventDefault();tambahAnggota()});
+$('#saveAnggotaBtn').addEventListener('click',function(e){e.preventDefault();tambahAnggota()});
 $('#cariAnggota').addEventListener('input',renderAnggota);
 $('#resetAnggotaBtn').addEventListener('click',cancelEdit);
 $('#deleteAnggotaBtn').addEventListener('click',deleteSelected);
@@ -620,8 +622,10 @@ $('#exportAnggotaBtn').addEventListener('click',exportCSVAnggota);
 $('#importAnggotaBtn').addEventListener('click',function(){var f=$('#importFile');if(!f.files.length)f.click()});
 $('#importFile').addEventListener('change',exportImport);
 $('#btnGenerateJadwal').addEventListener('click',function(){
-  var end=prompt('Masukkan tanggal akhir jadwal (format YYYY-MM-DD):','2026-12-31');
-  if(end&&generateSchedule(end)){toast('Jadwal dibuat hingga '+end);renderKalender();renderStatistik();}
+  var startKey=db.setting.tglMulai||today();
+  var s=new Date(startKey);s.setDate(s.getDate()+30);var def=iso(s);
+  var end=prompt('Masukkan tanggal akhir jadwal (format YYYY-MM-DD):',def);
+  if(end&&generateSchedule(end)){toast('Jadwal dibuat hingga '+end);renderBulanNav();renderKalender();renderStatistik();}
 });
 $('#btnPrint').addEventListener('click',printJadwal);
 $('#btnTutupSettings').addEventListener('click',function(){$('#modalSettings').classList.remove('buka')});
@@ -629,7 +633,9 @@ document.addEventListener('click',function(e){if(e.target&&e.target.id==='btnSav
 $('#modalSettings').addEventListener('click',function(e){if(e.target===$('#modalSettings'))$('#modalSettings').classList.remove('buka')});
 document.addEventListener('click',function(e){var t=e.target.closest('.kal-sel[data-tgl]');if(t){tglPilih=t.dataset.tgl;renderKalender();renderEditor()}else{var b=e.target.closest('.bulan-btn');if(b)gantiBulan(Number(b.dataset.bulan))}});
 $('#berhalanganForm').addEventListener('submit',function(e){e.preventDefault();tambahBerhalangan()});
-$('#formSettings').addEventListener('submit',function(e){e.preventDefault();try{var hariAktif=[];if($('#aktifSenin').checked)hariAktif.push(1);if($('#aktifSelasa').checked)hariAktif.push(2);if($('#aktifRabu').checked)hariAktif.push(3);if($('#aktifKamis').checked)hariAktif.push(4);if($('#aktifJumat').checked)hariAktif.push(5);if($('#aktifSabtu').checked)hariAktif.push(6);var setting={tglMulai:$('#settingTglMulai').value,perHari:Number($('#settingPerHari').value)||2,jamMulai:$('#settingJamMulai').value,jamSelesai:$('#settingJamSelesai').value,hariAktif:hariAktif,hariLibur:$('#settingHariLibur').value};db.setting=setting;save();renderHeader();$('#modalSettings').classList.remove('buka');toast('Pengaturan tersimpan!')}catch(err){alert('Error simpan pengaturan: '+err.message)}});
+$('#saveBerhalanganBtn').addEventListener('click',function(e){e.preventDefault();tambahBerhalangan()});
+$('#formSettings').addEventListener('submit',function(e){e.preventDefault();simpanSettings()});
+$('#saveSettingsBtn').addEventListener('click',function(e){e.preventDefault();simpanSettings()});
 $('#btnBukaSettings').addEventListener('click',function(){
   $('#settingTglMulai').value=db.setting.tglMulai||today();
   $('#settingPerHari').value=db.setting.perHari||2;
@@ -646,6 +652,7 @@ $('#btnBukaSettings').addEventListener('click',function(){
 });
 function showTab(name){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===name)});document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.id==='tab-'+name)});try{if(name==='anggota')renderAnggota();else if(name==='jadwal'){renderBulanNav();renderKalender();renderEditor();}else if(name==='berhalangan')renderBerhalangan();else if(name==='statistik')renderStatistik()}catch(err){console.error('Error on tab '+name+':',err)}}
 function renderHeader(){var el=$('#headerInfo');if(!el)return;try{var setting=db.setting||{},perHari=setting.perHari||2,aktifCount=db.anggota.filter(function(m){return m.aktif}).length,jamDisplay=(setting.jamMulai||'06:30')+' - '+((setting.jamSelesai||'07:00'));el.innerHTML='<span class="header-info">🗓️ <b>'+namBulan(bulanAktif)+'</b> | 👥 '+aktifCount+' aktif | ⏰ '+jamDisplay+'</span>'}catch(err){console.error('Error in renderHeader:',err)}}
+function simpanSettings(){try{var hariAktif=[];if($('#aktifSenin').checked)hariAktif.push(1);if($('#aktifSelasa').checked)hariAktif.push(2);if($('#aktifRabu').checked)hariAktif.push(3);if($('#aktifKamis').checked)hariAktif.push(4);if($('#aktifJumat').checked)hariAktif.push(5);if($('#aktifSabtu').checked)hariAktif.push(6);db.setting={tglMulai:$('#settingTglMulai').value,perHari:Number($('#settingPerHari').value)||2,jamMulai:$('#settingJamMulai').value,jamSelesai:$('#settingJamSelesai').value,hariAktif:hariAktif,hariLibur:$('#settingHariLibur').value};save();renderHeader();$('#modalSettings').classList.remove('buka');toast('Pengaturan tersimpan!')}catch(err){alert('Error simpan pengaturan: '+err.message)}}
 // INIT
 $('.tab-btn.active').click();renderHeader();
 if(db.setting.tglMulai&&!Object.keys(db.jadwal).length&&db.anggota.length){var end=prompt('Auto-generate jadwal 30 hari pertama? Klik Cancel untuk manual.','2025-12-31');if(end!==null)generateSchedule(end)}
