@@ -115,6 +115,8 @@ td b { color: var(--primary-dark); }
   .kal-nama { font-size: .52rem; }
   .kal-sel { min-height: 46px; }
 }
+body.mode-edit{background:#f0fdfa}
+body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border-radius:12px;background:#fffbeb}
 @page { size: A4 landscape; margin: 10mm; }
 @media print {
   body * { visibility: hidden !important; }
@@ -152,12 +154,14 @@ td b { color: var(--primary-dark); }
     <div class="card">
       <h2>Tambah Anggota Baru</h2>
       <form id="anggotaForm">
-        <div class="grid">
+        <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
           <label>Nama Lengkap *</label><input type="text" id="namaAnggota" required placeholder="Contoh: Andi Saputra">
+          <label>Edit Mode<button type="button" class="btn btn-reset small" id="btnModeEdit" hidden>✏️ Edit Selected</button></label>
         </div>
         <div class="actions">
           <button type="submit" class="btn primary" id="saveAnggotaBtn">Tambah Anggota</button>
-          <button type="reset" class="btn soft" id="cancelBtn">Reset</button>
+          <button type="button" class="btn soft" id="resetAnggotaBtn">Reset Form</button>
+          <button type="button" class="btn danger small" id="deleteAnggotaBtn" hidden>Hapus Anggota Terpilih</button>
         </div>
       </form>
     </div>
@@ -166,7 +170,8 @@ td b { color: var(--primary-dark); }
         <h2>Daftar Anggota (<span id="totalAnggota">0</span>)</h2>
         <input class="search" id="cariAnggota" placeholder="Cari nama...">
         <div class="actions" style="margin:0">
-          <button class="btn btn-reset small" id="exportAnggotaBtn">&#11015; Import CSV</button>
+          <button class="btn primary small" id="exportAnggotaBtn">&#11015; Export CSV</button>
+          <button class="btn soft small" id="importAnggotaBtn">&#8674; Import CSV</button>
           <input type="file" id="importFile" accept=".csv,.txt,text/csv" hidden>
         </div>
       </div>
@@ -178,7 +183,6 @@ td b { color: var(--primary-dark); }
           <tbody id="tabelaAnggota"></tbody>
         </table>
       </div>
-    </div>
   </section>
   <section id="tab-jadwal" class="tab">
     <div class="card">
@@ -363,18 +367,32 @@ function getReplacement(dateKey,idToReplace,currentAssignments){
   }
   return null;
 }
+function exportCSVAnggota(){
+  if(!db.anggota.length){alert('Belum ada anggota untuk diekpor.');return}
+  var rows=[['No','Nama','Status','Jumlah Tugas']];
+  sortedAnggota().forEach(function(s,i){rows.push([i+1,s.nama,s.aktif?'Aktif':'Nonaktif',countAssignment(s.id)]);});
+  var text='\uFEFF'+rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(';')}).join('\r\n');
+  var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.download='daftar-anggota-jadwal-gerbang-'+today()+'.csv';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},500);toast('CSV diunduh!');
+}
 
 // --- CRUD ANGGOTA ---
-function tambahAnggota(){
+function tambahAnggota(e){
+  e&&e.preventDefault();
   var nama=$('#namaAnggota').value.trim();
   if(!nama)return;
+  if(sedangEditId){
+    var s=db.anggota.find(function(x){return x.id===sedangEditId});
+    if(s){s.nama=nama;save();renderAnggota();renderSelectAnggota();renderHeader();toast('Anggota diperbarui!');cancelEdit()}
+    return;
+  }
   var dup=db.anggota.some(function(s){return s.nama.toLowerCase()===nama.toLowerCase()});
   if(dup){alert('Nama sudah ada!');return}
   var data={id:uid(),nama:nama,aktif:true};
   db.anggota.push(data);
   save();renderAnggota();renderSelectAnggota();renderHeader();
-  $('#namaAnggota').value='';
+  $('#namaAnggota').value='';toast('Anggota baru ditambah!');
 }
+function deleteSelected(){if(!sedangEditId||!confirm('Hapus anggota?'))return;hapusAnggota(sedangEditId);cancelEdit()}
 function hapusAnggota(id){
   var s=db.anggota.find(function(x){return x.id===id});
   if(!s||!confirm('Hapus '+s.nama+'?'))return;
@@ -388,6 +406,24 @@ function toggleAktif(id){
   if(s)s.aktif=!s.aktif;
   save();renderAnggota();renderHeader();
 }
+var sedangEditId=null;
+function editAnggota(id){
+  var s=db.anggota.find(function(x){return x.id===id});
+  if(!s||!s.aktif){alert('Anggota harus aktif untuk diedit.');return}
+  sedangEditId=id;
+  $('#namaAnggota').value=s.nama;
+  $('#saveAnggotaBtn').textContent='Perbarui Anggota';
+  $('#deleteAnggotaBtn').hidden=false;
+  $('body').classList.add('mode-edit');
+  alert('Mode edit: ' + s.nama);
+}
+function cancelEdit(){
+  sedangEditId=null;
+  $('#namaAnggota').value='';
+  $('#saveAnggotaBtn').textContent='Tambah Anggota';
+  $('#deleteAnggotaBtn').hidden=true;
+  $('body').classList.remove('mode-edit');
+}
 function renderAnggota(){
   var q=$('#cariAnggota').value.toLowerCase();
   var list=sortedAnggota().filter(function(s){return !q||(s.nama.toLowerCase()).indexOf(q)>-1});
@@ -395,7 +431,7 @@ function renderAnggota(){
   var tbl='#tabelaAnggota';
   if(list.length===0){$(tbl).innerHTML='<tr><td colspan="5" class="empty">'+(q?'Tidak ditemukan':'Belum ada anggota.')+'</td></tr>';return}
   $(tbl).innerHTML=list.map(function(s,i){var ct=countAssignment(s.id);
-    return '<tr><td>'+(i+1)+'</td><td><b>'+esc(s.nama)+'</b></td><td><span class="tag'+(s.aktif?' sukses':' batal')+'">'+(s.aktif?'Aktif':'Nonaktif')+'</span></td><td>'+ct+' tugas</td><td><button class="btn soft small" onclick="toggleAktif(\''+s.id+'\')">'+(s.aktif?'Nonaktif':'Aktifkan')+'</button> <button class="btn danger small" onclick="hapusAnggota(\''+s.id+'\')">Hapus</button></td></tr>';
+    return '<tr><td>'+(i+1)+'</td><td><b>'+esc(s.nama)+'</b></td><td><span class="tag'+(s.aktif?' sukses':' batal')+'">'+(s.aktif?'Aktif':'Nonaktif')+'</span></td><td>'+ct+' tugas</td><td><button class="btn soft small" onclick="toggleAktif(\''+s.id+'\')">'+(s.aktif?'Nonaktif':'Aktifkan')+'</button> <button class="btn primary small" onclick="editAnggota(\''+s.id+'\')">Edit</button> <button class="btn danger small" onclick="hapusAnggota(\''+s.id+'\')">Hapus</button></td></tr>';
   }).join('');
 }
 function renderSelectAnggota(){
@@ -572,8 +608,11 @@ function printJadwal(){
 
 // --- EVENT LISTENERS ---
 document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});
-$('#anggotaForm').addEventListener('submit',function(e){e.preventDefault();tambahAnggota()});
-$('#exportAnggotaBtn').addEventListener('click',function(){var f=$('#importFile');if(!f.files.length)f.click()});
+$('#anggotaForm').addEventListener('submit',tambahAnggota);
+$('#resetAnggotaBtn').addEventListener('click',cancelEdit);
+$('#deleteAnggotaBtn').addEventListener('click',deleteSelected);
+$('#exportAnggotaBtn').addEventListener('click',exportCSVAnggota);
+$('#importAnggotaBtn').addEventListener('click',function(){var f=$('#importFile');if(!f.files.length)f.click()});
 $('#importFile').addEventListener('change',exportImport);
 $('#btnGenerateJadwal').addEventListener('click',function(){
   var end=prompt('Masukkan tanggal akhir jadwal (format YYYY-MM-DD):','2026-12-31');
@@ -616,8 +655,8 @@ function renderHeader(){
   el.innerHTML='<span class="header-info">Ã°Å¸â€”â€œÃ¯Â¸Â <b>'+namBulan(bulanAktif)+'</b> | Ã°Å¸â€˜Â¥ '+db.anggota.filter(function(m){return m.aktif}).length+' aktif | Ã¢ÂÂ° '+setting.jamMulai+' - '+setting.jamSelesai+'</span>';
 }
 // INIT
-$('.tab-btn.active').click();
-renderHeader();
+$('.tab-btn.active').click();renderHeader();
+if(db.setting.tglMulai&&!Object.keys(db.jadwal).length&&db.anggota.length){var end=prompt('Auto-generate jadwal 30 hari pertama? Klik Cancel untuk manual.','2025-12-31');if(end!==null)generateSchedule(end)}
 </script>
 </body>
 </html>
