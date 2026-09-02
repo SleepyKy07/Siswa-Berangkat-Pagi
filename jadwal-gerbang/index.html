@@ -522,12 +522,13 @@ function toast(msg){
 function tambahBerhalangan(){
   var mId=$('#anggotaBerhalangan').value,tglM=$('#tglMulaiBerhalangan').value,tglS=$('#tglSelesaiBerhalangan').value,ket=$('#ketBerhalangan').value;
   if(!mId||!tglM||!tglS){alert('Isi semua!');return}
+  var start=new Date(tglM),end=new Date(tglS);
+  if(isNaN(start)||isNaN(end)||end<start){alert('Rentang tanggal tidak valid.');return}
   if(!db.berhalangan[mId])db.berhalangan[mId]={};
-  var dur=new Date(tglS.getTime());dur.setDate(dur.getDate()-new Date(tglM.getTime()).getDate()+1);
-  var d=new Date(tglM);while(d<=dur){var k=iso(d);db.berhalangan[mId][k]=true;d.setDate(d.getDate()+1)}
+  var d=new Date(start);while(d<=end){var k=iso(d);db.berhalangan[mId][k]=true;d.setDate(d.getDate()+1)}
   db.berhalangan[mId].ket=ket;
   save();processBerhalangan();renderBerhalangan();renderKalender();renderStatistik();
-  toast('Period terpasang, auto-process mengganti!');
+  toast('Periode berhalangan ditambahkan!');
   $('#berhalanganForm').reset();
 }
 function hapusBerhalangan(mId,key){
