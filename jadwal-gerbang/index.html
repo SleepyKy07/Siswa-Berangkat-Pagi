@@ -288,22 +288,7 @@ function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){retur
 function today(){var d=new Date();return iso(d)}
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function dateText(k){var p=k.split('-');if(!p.length)return '-';var d=new Date(p[0],Number(p[1])-1,p[2]);return HARI[d.getDay()]+' '+p[2]+' '+NAMA_BULAN[Number(p[1])-1]+' '+p[0]}
-<<<<<<< HEAD
-// Load data from localStorage
-function load(){
-  try{
-    var d=JSON.parse(localStorage.getItem(KEY));
-    if(d&&d.anggota&&d.jadwal&&d.setting){
-      if(!d.berhalangan)d.berhalangan={};
-      if(!d.hitung)d.hitung={};
-      return d;
-    }
-  }catch(e){} // Silently ignore parse errors
-  return {anggota:[],jadwal:{},berhalangan:{},hitung:{},setting:{}};
-}
-=======
-function load(){try{var d=JSON.parse(localStorage.getItem(KEY));if(d&&d.anggota&&d.jadwal&&d.setting){if(!d.berhalangan)d.berhalangan={};if(!d.hitung)d.hitung={};if(!d.brhlKet)d.brhlKet={};return d}catch(e){}}return {anggota:[],jadwal:{},berhalangan:{},hitung:{},brhlKet:{},setting:{}};}
->>>>>>> c0b41fb9114287e73b1778e6f95f4c4acaecf816
+function load(){try{var d=JSON.parse(localStorage.getItem(KEY));if(d&&d.anggota&&d.jadwal&&d.setting){if(!d.berhalangan)d.berhalangan={};if(!d.hitung)d.hitung={};if(!d.brhlKet)d.brhlKet={};return d}}catch(e){}return {anggota:[],jadwal:{},berhalangan:{},hitung:{},brhlKet:{},setting:{}};}
 function save(){localStorage.setItem(KEY,JSON.stringify(db))}
 function sortedAnggota(){return db.anggota.slice().sort(function(a,b){return a.nama.localeCompare(b.nama,'id')})}
 
@@ -568,25 +553,16 @@ function toast(msg){
 function tambahBerhalangan(){
   var mId=$('#anggotaBerhalangan').value,tglM=$('#tglMulaiBerhalangan').value,tglS=$('#tglSelesaiBerhalangan').value,ket=$('#ketBerhalangan').value;
   if(!mId||!tglM||!tglS){alert('Isi semua!');return}
-<<<<<<< HEAD
-  var start=new Date(tglM),end=new Date(tglS);
-  if(isNaN(start)||isNaN(end)||end<start){alert('Rentang tanggal tidak valid.');return}
-  if(!db.berhalangan[mId])db.berhalangan[mId]={};
-  var d=new Date(start);while(d<=end){var k=iso(d);db.berhalangan[mId][k]=true;d.setDate(d.getDate()+1)}
-  db.berhalangan[mId].ket=ket;
-  save();processBerhalangan();renderBerhalangan();renderKalender();renderStatistik();
-  toast('Periode berhalangan ditambahkan!');
-=======
-  if(!Array.isArray(db.berhalangan[mId]))db.berhalangan[mId]=[];
   var pM=tglM.split('-'),pS=tglS.split('-');
   var start=new Date(Number(pM[0]),Number(pM[1])-1,Number(pM[2]));
   var end=new Date(Number(pS[0]),Number(pS[1])-1,Number(pS[2]));
+  if(isNaN(start)||isNaN(end)||end<start){alert('Rentang tanggal tidak valid.');return}
+  if(!Array.isArray(db.berhalangan[mId]))db.berhalangan[mId]=[];
   var d=new Date(start),added=0;
   while(d<=end){var k=iso(d);if(db.berhalangan[mId].indexOf(k)==-1){db.berhalangan[mId].push(k);added++}d.setDate(d.getDate()+1)}
   if(ket)db.brhlKet[mId]=ket;
   save();processBerhalangan();renderBerhalangan();renderKalender();renderStatistik();
-  toast('Period terpasang ('+added+' hari), auto-process mengganti!');
->>>>>>> c0b41fb9114287e73b1778e6f95f4c4acaecf816
+  toast('Periode berhalangan ditambahkan ('+added+' hari)!');
   $('#berhalanganForm').reset();
 }
 function hapusBerhalangan(mId,key){
@@ -615,90 +591,25 @@ function renderStatistik(){
   simulate30Days();
 }
 function simulate30Days(){
-<<<<<<< HEAD
-  var saved={};
-  for(var id in db.hitung){saved[id]=db.hitung[id]}
-  db.hitung={};
-  var n=db.anggota.filter(function(m){return m.aktif!==false}).length;
-  if(n===0){$('#simulasiHasil').textContent='Tidak ada anggota aktif.';db.hitung=saved;return}
-  
-  var hari=30;
-  var nper=db.setting.perHari||2;
-  var totalSlots=hari*nper;
-  var pred={};
-  
-  db.anggota.filter(function(m){return m.aktif!==false}).forEach(function(m){
-    pred[m.id]=Math.floor(totalSlots/n);
-  });
-  
-  var sisa=totalSlots%n;
-  if(sisa>0){
-    var sortedIds=Object.keys(pred).sort();
-    for(var i=0;i<sisa;i++){
-      var ids=sortedIds[i];
-      if(ids)pred[ids]++;
-    }
-  }
-  
-  var vals=Object.values(pred),mx=Math.max.apply(null,vals),mn=Math.min.apply(null,vals);
-  var avg=totalSlots/n;
-  
-  $('#simulasiHasil').textContent='Prediksi distribusi 30 hari: rata-rata '+avg.toFixed(1)+' tugas, maksimal '+mx+', minimal '+mn+', selisih '+((mx-mn)).toFixed(1)+' (semakin kecil semakin baik).';
-  
-=======
   var saved=Object.assign({},db.hitung);
   db.hitung={};
-  var n=db.anggota.filter(function(m){return m.aktif}).length;if(n===0){$('#simulasiHasil').textContent='Tidak ada anggota aktif.';return}
+  var n=db.anggota.filter(function(m){return m.aktif}).length;if(n===0){$('#simulasiHasil').textContent='Tidak ada anggota aktif.';db.hitung=saved;return}
   var hari=30,nper=db.setting.perHari||2,totalSlots=hari*nper;
   var pred={};
   db.anggota.filter(function(m){return m.aktif}).forEach(function(m){pred[m.id]=Math.floor(totalSlots/n)});
   var sisa=totalSlots%n;if(sisa>0)for(var i=0;i<sisa;i++){var ids=Object.keys(pred).sort()[i];if(ids)pred[ids]++}
   var vals=Object.values(pred),mx=Math.max.apply(null,vals),mn=Math.min.apply(null,vals);
   $('#simulasiHasil').textContent='Prediksi distribusi 30 hari: rata-rata '+((totalSlots/n)).toFixed(1)+' tugas, maksimal '+mx+', minimal '+mn+', selisih '+((mx-mn)).toFixed(1)+' (semakin kecil semakin baik).';
->>>>>>> c0b41fb9114287e73b1778e6f95f4c4acaecf816
   db.hitung=saved;
 }
 
 // --- PRINT ---
 function printJadwal(){
-<<<<<<< HEAD
-  var bl=bulanAktif;
-  var th=Number(bl.split('-')[0]);
-  var bu=Number(bl.split('-')[1])-1;
-  var jml=new Date(th,bu+1,0).getDate();
-  
-  var h='<table class="print-table"><thead><tr><th>Tanggal</th><th>Hari</th><th>Petugas 1</th><th>Petugas 2</th><th>Status</th></tr></thead><tbody>';
-  
-  for(var d=1;d<=jml;d++){
-    var dt=new Date(th,bu,d);
-    var isoDt=iso(dt);
-    var dow=dt.getDay();
-    
-    if(dow!==0){
-      var en=db.jadwal[isoDt];
-      var cmd=en?en.petugas.map(function(id){
-        var nm=db.anggota.find(function(x){return x.id===id});
-        return nm?nm.nama:id;
-      }):[];
-      
-      h+='<tr><td>'+isoDt+'</td><td>'+dateText(isoDt)+'</td><td>'+esc(cmd[0]||'-')+'</td><td>'+esc(cmd[1]||'-')+'</td><td>'+(en?en.status:'belum')+'</td></tr>';
-    }
-  }
-  
-  h+='</tbody></table>';
-  
-  var div=document.createElement('div');
-  div.innerHTML='<div id="printCard">'+h+'</div>';
-  $('main').appendChild(div);
-  window.print();
-  div.remove();
-=======
   if(!db.setting.tglMulai||db.setting.tglMulai==='2099-12-31'){alert('Buat jadwal terlebih dahulu!');return;}
   var bl=db.setting.tglMulai,th=Number(bl.split('-')[0]),bu=Number(bl.split('-')[1])-1,jml=new Date(th,bu+1,0).getDate();
   var h='<table class="print-table"><thead><tr><th>Tanggal</th><th>Hari</th><th>Petugas 1</th><th>Petugas 2</th><th>Status</th></tr></thead><tbody>';
-  for(var d=1;d<=jml;d++){var dt=new Date(th,bu,d),isoDt=iso(dt),dow=dt.getDay();if(dow!==0){var en=db.jadwal[isoDt],cmd=en?en.petugas.map(function(id){var nm=db.anggota.find(function(x){return x.id===id});return nm?nm.nama:id}:[]):[];h+='<tr><td>'+isoDt+'</td><td>'+dateText(isoDt)+'</td><td>'+esc(cmd[0]||'-')+'</td><td>'+esc(cmd[1]||'-')+'</td><td>'+(en?en.status:'belum')+'</td></tr>';}}h+='</tbody></table>';
+  for(var d=1;d<=jml;d++){var dt=new Date(th,bu,d),isoDt=iso(dt),dow=dt.getDay();if(dow!==0){var en=db.jadwal[isoDt],cmd=en?en.petugas.map(function(id){var nm=db.anggota.find(function(x){return x.id===id});return nm?nm.nama:id}):[];h+='<tr><td>'+isoDt+'</td><td>'+dateText(isoDt)+'</td><td>'+esc(cmd[0]||'-')+'</td><td>'+esc(cmd[1]||'-')+'</td><td>'+(en?en.status:'belum')+'</td></tr>';}}h+='</tbody></table>';
   var div=document.createElement('div');div.innerHTML='<div id="printCard">'+h+'</div>';$('main').appendChild(div);window.print();setTimeout(function(){div.remove()},100);
->>>>>>> c0b41fb9114287e73b1778e6f95f4c4acaecf816
 }
 
 // --- EVENT LISTENERS ---
@@ -740,18 +651,9 @@ $('#btnBukaSettings').addEventListener('click',function(){
   $('#settingHariLibur').value=db.setting.hariLibur||'';
   $('#modalSettings').classList.add('buka');
 });
-<<<<<<< HEAD
-function showTab(name){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===name)});document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.id==='tab-'+name)});if(name==='anggota')renderAnggota();if(name==='jadwal'){renderBulanNav();renderKalender();renderEditor();}if(name==='berhalangan')renderBerhalangan();if(name==='statistik')renderStatistik();}}
-function renderHeader(){
-  var el=$('#headerInfo');if(!el)return;
-  var setting=db.setting||{},perHari=setting.perHari||2;
-  el.innerHTML='<span class="header-info">Ã°Å¸â€”â€œÃ¯Â¸Â <b>'+namBulan(bulanAktif)+'</b> | Ã°Å¸â€˜Â¥ '+db.anggota.filter(function(m){return m.aktif}).length+' aktif | Ã¢ÂÂ° '+setting.jamMulai+' - '+setting.jamSelesai+'</span>';
-}
-=======
 function showTab(name){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===name)});document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.id==='tab-'+name)});try{if(name==='anggota')renderAnggota();else if(name==='jadwal'){renderBulanNav();renderKalender();renderEditor();}else if(name==='berhalangan')renderBerhalangan();else if(name==='statistik')renderStatistik()}catch(err){console.error('Error on tab '+name+':',err)}}
 function renderHeader(){var el=$('#headerInfo');if(!el)return;try{var setting=db.setting||{},perHari=setting.perHari||2,aktifCount=db.anggota.filter(function(m){return m.aktif}).length,jamDisplay=(setting.jamMulai||'06:30')+' - '+((setting.jamSelesai||'07:00'));el.innerHTML='<span class="header-info">🗓️ <b>'+namBulan(bulanAktif)+'</b> | 👥 '+aktifCount+' aktif | ⏰ '+jamDisplay+'</span>'}catch(err){console.error('Error in renderHeader:',err)}}
 function simpanSettings(){try{var hariAktif=[];if($('#aktifSenin').checked)hariAktif.push(1);if($('#aktifSelasa').checked)hariAktif.push(2);if($('#aktifRabu').checked)hariAktif.push(3);if($('#aktifKamis').checked)hariAktif.push(4);if($('#aktifJumat').checked)hariAktif.push(5);if($('#aktifSabtu').checked)hariAktif.push(6);db.setting={tglMulai:$('#settingTglMulai').value,perHari:Number($('#settingPerHari').value)||2,jamMulai:$('#settingJamMulai').value,jamSelesai:$('#settingJamSelesai').value,hariAktif:hariAktif,hariLibur:$('#settingHariLibur').value};save();renderHeader();$('#modalSettings').classList.remove('buka');toast('Pengaturan tersimpan!')}catch(err){alert('Error simpan pengaturan: '+err.message)}}
->>>>>>> c0b41fb9114287e73b1778e6f95f4c4acaecf816
 // INIT
 $('.tab-btn.active').click();renderHeader();
 if(db.setting.tglMulai&&!Object.keys(db.jadwal).length&&db.anggota.length){var end=prompt('Auto-generate jadwal 30 hari pertama? Klik Cancel untuk manual.','2025-12-31');if(end!==null)generateSchedule(end)}
