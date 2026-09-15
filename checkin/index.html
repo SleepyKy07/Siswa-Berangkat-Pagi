@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Check-in Siswa Berangkat Pagi</title>
+  <meta name="theme-color" content="#0f766e">
+  <link rel="stylesheet" href="../assets/css/portal.css">
+  <style>
+    :root{--primary:#0f766e;--primary-dark:#115e59;--accent:#f59e0b;--bg:#f0fdfa;--card:#fff;--text:#173b3a;--muted:#64807e;--line:#d8ebe8;--danger:#dc2626;--radius:18px;--success:#10b981}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:linear-gradient(145deg,#ecfeff,var(--bg));color:var(--text);min-height:100vh;padding-bottom:40px}
+    .max-w{max-width:380px;margin:auto;padding:16px}
+    .qr-code{background:#fff;border:2px solid var(--primary);border-radius:var(--radius);padding:32px;text-align:center;margin:16px auto;max-width:340px;box-shadow:0 6px 20px rgba(15,118,110,.06)}
+    .qr-icon{font-size:3rem;color:var(--primary);margin-bottom:10px}
+    .qr-text{font-size:1.05rem;color:var(--primary-dark);font-weight:700;margin-bottom:4px}
+    .qr-sub{color:var(--muted);font-size:.82rem}
+    .card{background:var(--card);border:1px solid rgba(216,235,232,.8);border-radius:var(--radius);padding:22px;box-shadow:0 8px 24px rgba(15,118,110,.07);margin-bottom:16px}
+    h2{font-size:1.1rem;color:var(--primary-dark);margin-bottom:14px;text-align:center}
+    .session-status{padding:14px;border-radius:12px;margin:12px 0;font-weight:700;font-size:.9rem}
+    .status-active{background:#d1fae5;color:#065f46;border:1px solid #10b981}
+    .status-inactive{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}
+    .notice{padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:.82rem}
+    .action-row{display:flex;gap:9px;margin-top:18px;flex-wrap:wrap}
+    .btn{border:0;border-radius:11px;padding:11px 16px;min-height:42px;font:700 .8rem inherit;cursor:pointer;transition:.18s;flex:1}
+    .btn.primary{background:var(--primary);color:#fff}
+    .btn.primary:hover{background:var(--primary-dark)}
+    .btn.soft{background:#e6f6f3;color:var(--primary-dark)}
+    .btn.danger{background:#fee2e2;color:var(--danger)}
+    .info-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed var(--line);font-size:.82rem}
+    .info-row:last-child{border-bottom:0}
+    .info-label{color:var(--muted)}
+    .info-val{color:var(--primary-dark);font-weight:700}
+    .loading{text-align:center;padding:40px}
+    .loading-spinner{width:36px;height:36px;border:4px solid #f3f3f3;border-top:4px solid var(--primary);border-radius:50%;animation:spin 1s linear infinite;margin:auto}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .link-btn{display:inline-block;margin-top:10px;padding:8px 14px;border:1px solid var(--line);border-radius:10px;font-size:.82rem;color:var(--primary-dark);text-decoration:none;transition:.18s}
+    .link-btn:hover{background:#effcf9;border-color:var(--primary)}
+    .small-footer{text-align:center;font-size:.74rem;color:var(--muted);margin-top:8px}
+  </style>
+  <script src="../assets/js/supabase-config.js"></script>
+  <script src="../assets/js/supabase-client.js"></script>
+  <script src="../assets/js/checkin.js"></script>
+</head>
+<body>
+
+<div class="max-w">
+
+  <!-- QR Code permanent di gerbang -->
+  <div class="qr-code">
+    <div class="qr-icon">&#128274;</div>
+    <div class="qr-text">Absensi Siswa Berangkat Pagi</div>
+    <div class="qr-sub">Scan kode QR ini untuk check-in</div>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading" class="loading">
+    <div class="loading-spinner"></div>
+    <p style="margin-top:12px;font-size:.85rem">Memeriksa status sesi absensi&#8230;</p>
+  </div>
+
+  <!-- Status + aksi -->
+  <div id="contentArea" style="display:none;">
+    <div id="statusBadge" class="session-status"></div>
+
+    <div id="infoBox" style="display:none;" class="card">
+      <h2>&#9881; Detail Sesi Absensi</h2>
+      <div class="info-row"><span class="info-label">Status</span><span class="info-val" id="infoStatus"></span></div>
+      <div class="info-row"><span class="info-label">Jadwal Aktif</span><span class="info-val" id="infoSchedule"></span></div>
+      <div class="info-row"><span class="info-label">Waktu Server</span><span class="info-val" id="infoTime"></span></div>
+    </div>
+
+    <!-- Jika AKTIF -->
+    <div id="activeSection" style="display:none;" class="card">
+      <h2>&#9995; Absensi Dibuka</h2>
+      <div class="notice">Gunakan kamera untuk memindai kode QR ini di gerbang sekolah, lalu ikuti proses absensi.</div>
+      <div class="action-row">
+        <button class="btn primary" id="btnLanjut">&#10148; Lanjutkan Absensi</button>
+      </div>
+      <div class="small-footer">Foto/selfie hanya digunakan sebagai bukti kehadiran.</div>
+    </div>
+
+    <!-- Jika NONAKTIF -->
+    <div id="inactiveSection" style="display:none;">
+      <div class="card">
+        <h2>&#10067; Absensi Tidak Aktif</h2>
+        <div class="notice">Sesi absensi Berangkat Pagi sedang <strong>nonaktif</strong>. Silakan cek kembali nanti sesuai jadwal, atau hubungi petugas.</div>
+        <div style="margin-top:12px;font-size:.78rem;color:var(--muted)">QR ini permanen dan tidak berubah tiap hari. Status dicek dari server setiap kali discan.</div>
+      </div>
+      <div class="action-row">
+        <button class="btn soft" id="btnRefresh">&#8637; Cek Kembali</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Error -->
+  <div id="errorBox" class="card" style="display:none;">
+    <h2>&#9888; Gagal Memeriksa Status</h2>
+    <div class="notice" id="errorMessage"></div>
+    <div class="action-row">
+      <button class="btn soft" id="btnRetry">&#8637; Coba Lagi</button>
+    </div>
+    <a href="../supabase/setup-guide.html" class="link-btn">&#128214; Panduan Setup Backend</a>
+  </div>
+
+</div>
+
+</body>
+</html>

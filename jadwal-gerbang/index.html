@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
 <meta charset="UTF-8">
@@ -121,13 +121,11 @@ body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border
 @media print {
   body * { visibility: hidden !important; }
   #printArea, #printArea * { visibility: visible !important; }
-  #printArea { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #fff; padding: 0; z-index: 9999; }
-  .print-table { width: 100%; max-width: 1000px; border-collapse: collapse; }
-  .print-table th, .print-table td { border: 1px solid #333; padding: 8px; text-align: left; }
-  .print-table th { background: #f5fbfa; text-transform: uppercase; font-size: .7rem; }
-  .back-bar, nav, .card:not(#printCard), .header-info, .btn-jadwal { display: none !important; }
-  header { padding-bottom: 0; }
-  main { margin: 20px auto; }
+  #printArea { position: fixed; inset: 0; display: block; background: #fff; padding: 16px; z-index: 9999; }
+  .print-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .print-table th, .print-table td { border: 1px solid #333; padding: 8px; text-align: left; font-size: .85rem; }
+  .print-table th { background: #f5fbfa; text-transform: uppercase; font-size: .75rem; }
+  .back-bar, nav, .card, .header-info, .btn-jadwal, header { display: none !important; }
 }
 </style>
 </head>
@@ -303,8 +301,11 @@ function generateSchedule(toDateStr){
   var endDate = new Date(toDateStr);
   if(isNaN(endDate.getTime())||endDate < current){alert('Tanggal akhir tidak valid.');return false;}
   var hariAktif = [false,false,false,false,false,false,false];
-  if(db.setting.hariAktif&&db.setting.hariAktif.length){hariAktif=[true,true,true,true,true,true,true];db.setting.hariAktif.forEach(function(x){hariAktif[Number(x)]=true})}
-  else hariAktif=[false,true,true,true,true,true,false]; // default Mon-Fri (dow:0=Sun..6=Sat)
+  if(db.setting.hariAktif&&db.setting.hariAktif.length){
+    db.setting.hariAktif.forEach(function(x){hariAktif[Number(x)]=true});
+  } else {
+    hariAktif=[false,true,true,true,true,true,false]; // default Mon-Fri (dow:0=Sun..6=Sat)
+  }
   var liburKeys = (db.setting.hariLibur||'').split('\n').map(function(x){return x.trim()}).filter(function(x){return x});
   
   while(current<=endDate){
@@ -347,8 +348,8 @@ function processBerhalangan(){
           entry.petugas.splice(i,1,replacement);
           db.hitung[mId]--;
           db.hitung[replacement]++;
+          db.jadwal[k].status='berhalangan';
         }
-        db.jadwal[k].status='berhalangan';
       }
     }
   }
@@ -605,11 +606,22 @@ function simulate30Days(){
 
 // --- PRINT ---
 function printJadwal(){
-  if(!db.setting.tglMulai||db.setting.tglMulai==='2099-12-31'){alert('Buat jadwal terlebih dahulu!');return;}
-  var bl=db.setting.tglMulai,th=Number(bl.split('-')[0]),bu=Number(bl.split('-')[1])-1,jml=new Date(th,bu+1,0).getDate();
-  var h='<table class="print-table"><thead><tr><th>Tanggal</th><th>Hari</th><th>Petugas 1</th><th>Petugas 2</th><th>Status</th></tr></thead><tbody>';
-  for(var d=1;d<=jml;d++){var dt=new Date(th,bu,d),isoDt=iso(dt),dow=dt.getDay();if(dow!==0){var en=db.jadwal[isoDt],cmd=en?en.petugas.map(function(id){var nm=db.anggota.find(function(x){return x.id===id});return nm?nm.nama:id}):[];h+='<tr><td>'+isoDt+'</td><td>'+dateText(isoDt)+'</td><td>'+esc(cmd[0]||'-')+'</td><td>'+esc(cmd[1]||'-')+'</td><td>'+(en?en.status:'belum')+'</td></tr>';}}h+='</tbody></table>';
-  var div=document.createElement('div');div.innerHTML='<div id="printCard">'+h+'</div>';$('main').appendChild(div);window.print();setTimeout(function(){div.remove()},100);
+  var keys = Object.keys(db.jadwal).sort();
+  if(!keys.length){alert('Buat jadwal terlebih dahulu!');return;}
+  var h='<div style="margin-bottom:14px"><h2 style="margin:0;font-size:1.2rem;color:#115e59">Jadwal Petugas Gerbang OSIS</h2><p style="margin:4px 0 0;font-size:.85rem;color:#555">Jam: '+(db.setting.jamMulai||'06:30')+' - '+(db.setting.jamSelesai||'07:00')+'</p></div>';
+  h+='<table class="print-table"><thead><tr><th>Tanggal</th><th>Hari</th><th>Petugas 1</th><th>Petugas 2</th><th>Status</th></tr></thead><tbody>';
+  keys.forEach(function(isoDt){
+    var en=db.jadwal[isoDt];
+    var cmd=en?en.petugas.map(function(id){var nm=db.anggota.find(function(x){return x.id===id});return nm?nm.nama:id}):[];
+    h+='<tr><td>'+isoDt+'</td><td>'+dateText(isoDt)+'</td><td>'+esc(cmd[0]||'-')+'</td><td>'+esc(cmd[1]||'-')+'</td><td>'+(en?en.status:'belum')+'</td></tr>';
+  });
+  h+='</tbody></table>';
+  var div=document.createElement('div');
+  div.id='printArea';
+  div.innerHTML=h;
+  document.body.appendChild(div);
+  window.print();
+  setTimeout(function(){div.remove()},500);
 }
 
 // --- EVENT LISTENERS ---
@@ -652,7 +664,15 @@ $('#btnBukaSettings').addEventListener('click',function(){
   $('#modalSettings').classList.add('buka');
 });
 function showTab(name){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===name)});document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.id==='tab-'+name)});try{if(name==='anggota')renderAnggota();else if(name==='jadwal'){renderBulanNav();renderKalender();renderEditor();}else if(name==='berhalangan')renderBerhalangan();else if(name==='statistik')renderStatistik()}catch(err){console.error('Error on tab '+name+':',err)}}
-function renderHeader(){var el=$('#headerInfo');if(!el)return;try{var setting=db.setting||{},perHari=setting.perHari||2,aktifCount=db.anggota.filter(function(m){return m.aktif}).length,jamDisplay=(setting.jamMulai||'06:30')+' - '+((setting.jamSelesai||'07:00'));el.innerHTML='<span class="header-info">🗓️ <b>'+namBulan(bulanAktif)+'</b> | 👥 '+aktifCount+' aktif | ⏰ '+jamDisplay+'</span>'}catch(err){console.error('Error in renderHeader:',err)}}
+function renderHeader(){
+  var el=$('#headerInfo');
+  try{
+    var setting=db.setting||{},perHari=setting.perHari||2,aktifCount=db.anggota.filter(function(m){return m.aktif}).length,jamDisplay=(setting.jamMulai||'06:30')+' - '+((setting.jamSelesai||'07:00'));
+    if(el) el.innerHTML='<span class="header-info">🗓️ <b>'+namBulan(bulanAktif)+'</b> | 👥 '+aktifCount+' aktif | ⏰ '+jamDisplay+'</span>';
+    var jamGanti = $('#jamGanti');
+    if(jamGanti) jamGanti.textContent = jamDisplay;
+  }catch(err){console.error('Error in renderHeader:',err)}
+}
 function simpanSettings(){try{var hariAktif=[];if($('#aktifSenin').checked)hariAktif.push(1);if($('#aktifSelasa').checked)hariAktif.push(2);if($('#aktifRabu').checked)hariAktif.push(3);if($('#aktifKamis').checked)hariAktif.push(4);if($('#aktifJumat').checked)hariAktif.push(5);if($('#aktifSabtu').checked)hariAktif.push(6);db.setting={tglMulai:$('#settingTglMulai').value,perHari:Number($('#settingPerHari').value)||2,jamMulai:$('#settingJamMulai').value,jamSelesai:$('#settingJamSelesai').value,hariAktif:hariAktif,hariLibur:$('#settingHariLibur').value};save();renderHeader();$('#modalSettings').classList.remove('buka');toast('Pengaturan tersimpan!')}catch(err){alert('Error simpan pengaturan: '+err.message)}}
 // INIT
 $('.tab-btn.active').click();renderHeader();

@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dashboard Admin &middot; Siswa Berangkat Pagi</title>
+  <meta name="theme-color" content="#0f766e">
+  <link rel="stylesheet" href="../assets/css/portal.css">
+  <style>
+    :root{--primary:#0f766e;--primary-dark:#115e59;--accent:#f59e0b;--bg:#f0fdfa;--card:#fff;--text:#173b3a;--muted:#64807e;--line:#d8ebe8;--danger:#dc2626;--radius:18px;--success:#10b981}
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:linear-gradient(145deg,#ecfeff,var(--bg));color:var(--text);min-height:100vh;padding-bottom:40px}
+    .back-bar{background:var(--primary-dark);color:#fff;padding:11px 16px}
+    .back-bar a{color:#fff;text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-size:.82rem;font-weight:600}
+    .max-w{max-width:720px;margin:auto;padding:16px}
+    .card{background:var(--card);border:1px solid rgba(216,235,232,.8);border-radius:var(--radius);padding:22px;box-shadow:0 8px 24px rgba(15,118,110,.07);margin-bottom:16px}
+    h2{font-size:1.1rem;color:var(--primary-dark);margin-bottom:14px}
+    .section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:12px 0}
+    .stat{padding:15px;border-radius:15px;background:#f0fdfa;border:1px solid #c9eeea}
+    .stat span{display:block;color:var(--muted);font-size:.74rem;font-weight:700}
+    .stat b{display:block;color:var(--primary-dark);font-size:1.45rem;margin-top:4px}
+    .tag{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:.7rem;font-weight:800}
+    .tag.sukses{background:#d1fae5;color:#065f46}
+    .tag.batal{background:#fee2e2;color:#991b1b}
+    .action-row{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
+    .btn{border:0;border-radius:11px;padding:11px 16px;min-height:42px;font:700 .82rem inherit;cursor:pointer;transition:.18s;white-space:nowrap}
+    .btn.primary{background:var(--primary);color:#fff}
+    .btn.primary:hover{background:var(--primary-dark)}
+    .btn.soft{background:#e6f6f3;color:var(--primary-dark)}
+    .btn.danger{background:#fee2e2;color:var(--danger)}
+    .btn-small{padding:8px 11px;font-size:.76rem;min-height:36px}
+    .notice{padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:.83rem}
+    table{width:100%;border-collapse:collapse;font-size:.82rem;margin:12px 0}
+    th,td{padding:11px;border-bottom:1px solid var(--line);text-align:left}
+    th{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;background:#f5fbfa}
+    tr:last-child td{border-bottom:0}
+    .empty{text-align:center;color:var(--muted);padding:20px 10px}
+    .progress{height:7px;border-radius:99px;background:#e5e7eb;overflow:hidden}
+    .progress i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#f97316);border-radius:inherit}
+    .small{font-size:.78rem;color:var(--muted)}
+    .modal-overlay{position:fixed;inset:0;background:rgba(19,78,74,.55);z-index:1100;display:none;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(3px)}
+    .modal-overlay.buka{display:flex}
+    .modal-box{background:#fff;border-radius:18px;max-width:520px;width:100%;max-height:88vh;overflow:auto;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+    .modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .modal-head h3{font-size:1.05rem;color:var(--primary-dark)}
+    .modal-close{border:none;background:#f0fdfa;color:var(--primary-dark);font-size:1.4rem;line-height:1;width:34px;height:34px;border-radius:50%;cursor:pointer}
+    .modal-close:hover{background:#d9f3ee}
+  </style>
+</head>
+<body>
+
+<header class="back-bar"><a href="./index.html"><span>&#8592;</span> Kembali ke Check-in</a></header>
+
+<div class="max-w">
+
+  <div class="card">
+    <div class="section-head">
+      <h2>&#128214; Dashboard Admin</h2>
+      <div class="action-row">
+        <button class="btn soft" id="btnToggleInactive">🔴 Nonaktifkan Absensi</button>
+        <button class="btn soft" id="btnToggleActive">🟢 Aktifkan Absensi</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Summary -->
+  <div class="card" id="statusCard" style="display:none;">
+    <h2>Status Sesi</h2>
+    <div id="statusDisplay" class="stats"></div>
+  </div>
+
+<!-- Auto Schedule -->
+  <div class="card">
+    <h2>&#9201; Jadwal Otomatis</h2>
+    <p class="small" style="margin-bottom:10px">Sesi otomatis AKTIF di antara jam mulai dan selesai (waktu server). Tanpa override manual, status mengikuti jadwal ini.</p>
+    <div class="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <label style="display:grid;gap:6px;font-size:.77rem;font-weight:700;color:var(--muted)">Jam Mulai
+        <input type="time" id="scheduleStart">
+      </label>
+      <label style="display:grid;gap:6px;font-size:.77rem;font-weight:700;color:var(--muted)">Jam Selesai
+        <input type="time" id="scheduleEnd">
+      </label>
+    </div>
+    <div class="action-row">
+      <button class="btn primary" id="btnSaveSchedule">Simpan Jadwal Automatis</button>
+      <button class="btn soft" id="btnClearSchedule">Hapus Override Manual</button>
+    </div>
+    <div class="small" style="margin-top:6px">Contoh: 06:00 &ndash; 07:00 = otomatis aktif pukul 06:00, nonaktif pukul 07:00.</div>
+  </div>
+
+  <!-- Siswa Paling Pagi -->
+  <div class="card">
+    <h2>&#127942; Siswa Paling Pagi</h2>
+    <div id="earliestContainer" class="empty">Memuat&hellip;</div>
+  </div>
+
+  <!-- Check-in Hari Ini -->
+  <div class="card">
+    <h2>Check-in Hari Ini</h2>
+    <div id="todayCheckinsContainer" class="empty">Memuat&hellip;</div>
+  </div>
+
+</div>
+
+<!-- Modal Toggle Session -->
+<div class="modal-overlay" id="modalToggle">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>&#9881; Ubah Status Sesi</h3>
+      <button class="modal-close" id="btnCloseModal">&times;</button>
+    </div>
+    <form id="formToggle">
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
+        <label>Aktifkan Sesi?</label><label><input type="radio" name="mode" value="active" checked></label>
+        <label>Nonaktifkan Sesi?</label><label><input type="radio" name="mode" value="inactive"></label>
+      </div>
+      <div class="actions" style="grid-column:1/-1;margin-top:12px">
+        <button type="button" class="btn soft" id="btnCancelToggle">Batal</button>
+        <button type="submit" class="btn primary" id="btnConfirmToggle">Simpan</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script type="module">
+  import SBPag from './assets/js/supabase-client.js';
+
+  // Inisialisasi
+  SBPag.init();
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var statusCard = $('#statusCard');
+    var earliestContainer = $('#earliestContainer');
+    var todayCheckinsContainer = $('#todayCheckinsContainer');
+    var btnToggleInactive = $('#btnToggleInactive');
+    var btnToggleActive = $('#btnToggleActive');
+    var modalToggle = $('#modalToggle');
+    var formToggle = $('#formToggle');
+
+    // Fungsi tampilkan loading sementara
+    function showLoading(el) { el.innerHTML = '<div class="notice">Memeriksa status server...</div>'; }
+
+    // 1. Cek status awal dan render
+    async function initDashboard() {
+      showLoading(earliestContainer);
+      showLoading(todayCheckinsContainer);
+
+      // A. Status sesi
+      var statusResult = await SBPag.getSessionStatus();
+      if (statusResult.error) {
+        alert('Gagal memeriksa status backend: ' + statusResult.detail);
+        return;
+      }
+
+      // Render status badge
+      statusCard.style.display = 'block';
+      if (statusResult.active) {
+        $('#statusDisplay').innerHTML =
+          '<div class="stat"><span>Status</span><b class="tag sukses">AKTIF</b></div>' +
+          '<div class="stat"><span>Manual Override</span><br>' + (statusResult.manual_override || 'Tidak ada') + '</div>' +
+          '<div class="stat"><span>Jadwal Otomatis</span><br>' + (statusResult.scheduled_starts_at || '-') + ' - ' + (statusResult.scheduled_ends_at || '-') + '</div>';
+      } else {
+        $('#statusDisplay').innerHTML =
+          '<div class="stat"><span>Status</span><b class="tag batal">NONAKTIF</b></div>' +
+          '<div class="stat"><span>Alasan</span><br>' + (statusResult.manual_override || 'Diluar jadwal otomatis') + '</div>' +
+          '<div class="stat"><span>Jadwal Otomatis</span><br>' + (statusResult.scheduled_starts_at || '-') + ' - ' + (statusResult.scheduled_ends_at || '-') + '</div>';
+      }
+
+      // B. Siswa paling pagi (earliest check-in)
+      var earliest = await SBPag.getEarliestCheckInToday();
+      if (earliest) {
+        earliestContainer.innerHTML =
+          '<div class="stat"><strong>' + escapeHtml(earliest.student.nama) + '</strong></div>' +
+          '<div class="stat"><span>Waktu</span><br>' + earliest.timestamp + '</div>' +
+          '<div class="stat"><span>NIS</span><br>' + escapeHtml(earliest.student.nis) + '</div>';
+      } else {
+        earliestContainer.innerHTML = '<div class="empty">Belum ada check-in hari ini.</div>';
+      }
+
+      // C. Daftar check-in hari ini
+      var checkIns = await SBPag.getTodayCheckIns();
+      renderTodayCheckins(checkIns);
+    }
+
+    // Render daftar check-in
+    function renderTodayCheckins(checkIns) {
+      if (!checkIns || checkIns.length === 0) {
+        todayCheckinsContainer.innerHTML = '<div class="empty">Belum ada check-in hari ini.</div>';
+        return;
+      }
+
+      var html = `
+        <table>
+          <thead>
+            <tr>
+              <th>No</th>
+              <th>Siswa</th>
+              <th>NIS</th>
+              <th>Kelas</th>
+              <th>Waktu</th>
+              <th>Selfie</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+      checkIns.sort(function (a, b) { return new a.checked_in_at - new b.checked_in_at; });
+      checkIns.forEach(function (ci, idx) {
+        var s = ci.students;
+        var hasSelfie = s && s.selfie_path ? '<span class="tag sukses">Sudah</span>' : '-';
+        html += '<tr>' +
+          '<td>' + (idx + 1) + '</td>' +
+          '<td>' + escapeHtml(s.nama) + '</td>' +
+          '<td>' + escapeHtml(s.nis || '-') + '</td>' +
+          '<td>' + escapeHtml(s.kelas || '-') + '</td>' +
+          '<td>' + new Date(ci.checked_in_at).toLocaleTimeString('id-ID') + '</td>' +
+          '<td>' + hasSelfie + '</td>' +
+          '</tr>';
+      });
+      html += '</tbody></table>';
+      todayCheckinsContainer.innerHTML = html;
+    }
+
+    // Escape HTML
+    function escapeHtml(v) {
+      return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+        return { '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[c];
+      });
+    }
+
+    // 2. Tombol AKTIF / NONAKTIF -> buka modal
+    btnToggleActive.addEventListener('click', function () {
+      formToggle.querySelector('input[name="mode"]').value = 'active';
+      modalToggle.classList.add('buka');
+    });
+    btnToggleInactive.addEventListener('click', function () {
+      formToggle.querySelector('input[name="mode"]').value = 'inactive';
+      modalToggle.classList.add('buka');
+    });
+
+    // 3. Submit modal toggle
+    formToggle.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var mode = formToggle.querySelector('input[name="mode"]:checked').value;
+      var reason = prompt('Alasan mengubah status:', '');
+      if (reason === null) return; // dibatalkan
+
+      if (mode === 'active') {
+        SBPag.setSessionActive(reason || 'Diaktifkan admin').then(function (res) {
+          if (res.error) alert('Gagal mengaktifkan: ' + res.detail);
+          else initDashboard(); // refresh
+          modalToggle.classList.remove('buka');
+        });
+      } else {
+        SBPag.setSessionInactive(reason || 'Dinaktiifkan admin').then(function (res) {
+          if (res.error) alert('Gagal nonaktifkan: ' + res.detail);
+          else initDashboard(); // refresh
+          modalToggle.classList.remove('buka');
+        });
+      }
+    });
+
+    // 4. Cancel modal
+    document.querySelectorAll('#btnCloseModal, #btnCancelToggle').forEach(function (el) {
+      el.addEventListener('click', function () { modalToggle.classList.remove('buka'); });
+    });
+
+    // Inisialisasi
+    initDashboard();
+
+    // --- Auto Schedule handlers ---
+    var scheduleStart = $('#scheduleStart');
+    var scheduleEnd = $('#scheduleEnd');
+    var btnSaveSchedule = $('#btnSaveSchedule');
+    var btnClearSchedule = $('#btnClearSchedule');
+
+    if (btnSaveSchedule) {
+      btnSaveSchedule.addEventListener('click', async function () {
+        var starts = scheduleStart ? scheduleStart.value : '';
+        var ends = scheduleEnd ? scheduleEnd.value : '';
+        if (!starts || !ends) return alert('Isi jam mulai dan jam selesai.');
+
+        var result = await SBPag.setSchedule(starts, ends);
+        if (result.error) alert('Gagal simpan jadwal: ' + result.detail);
+        else {
+          // Refresh dashboard
+          initDashboard();
+          scheduleStart.value = '';
+          scheduleEnd.value = '';
+        }
+      });
+    }
+
+    if (btnClearSchedule) {
+      btnClearSchedule.addEventListener('click', async function () {
+        if (!confirm('Hapus override manual jadwal otomatis?')) return;
+        var result = await SBPag.setSchedule('', ''); // clear manual override
+        if (result.error) alert('Gagal hapus override: ' + result.detail);
+        else initDashboard();
+      });
+    }
+  });
+</script>
+
+</body>
+</html>
