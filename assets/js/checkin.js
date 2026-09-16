@@ -1,119 +1,134 @@
 'use strict';
 
+/* ================================================================
+   GERBANG SCAN QR (/checkin/)
+   ----------------------------------------------------------------
+   - Sesi AKTIF    -> langsung pindah ke form pengisian nama (login.html)
+   - Sesi NONAKTIF -> tampilkan tulisan besar + jadwal (tanpa tombol)
+   - Error         -> pesan jelas + tombol "Coba Lagi" (hindari layar putih)
+   ================================================================ */
+
 (function () {
-  // --- STATUS UTAMA: Cek dan render status sesi absensi ---
+  var MAX_AUTO_RETRY = 2; // percobaan otomatis tambahan bila gagal
 
   function $(s) { return document.querySelector(s); }
 
+  function show(el) { if (el) el.style.display = 'block'; }
+  function hide(el) { if (el) el.style.display = 'none'; }
+
+  function showLoading() {
+    show($('#loading'));
+    hide($('#inactiveScreen'));
+    hide($('#errorBox'));
+  }
+
   function showError(msg) {
-    $('#loading').style.display = 'none';
-    $('#contentArea').style.display = 'none';
-    $('#errorBox').style.display = 'block';
+    hide($('#loading'));
+    hide($('#inactiveScreen'));
     $('#errorMessage').textContent = msg;
+    show($('#errorBox'));
   }
 
-  function renderStatus(result) {
-    $('#loading').style.display = 'none';
-    $('#errorBox').style.display = 'none';
-    $('#contentArea').style.display = 'block';
+  function showInactive(result) {
+    hide($('#loading'));
+    hide($('#errorBox'));
 
-    var badge = $('#statusBadge');
-    var isActive = result.active;
-    var manualOverride = result.manual_override;
-    var scheduledStarts = result.scheduled_starts_at;
-    var scheduledEnds = result.scheduled_ends_at;
-    var serverTime = result.server_time;
+    var mulai = result && result.scheduled_starts_at;
+    var selesai = result && result.scheduled_ends_at;
 
-    // Badge status
-    badge.textContent = isActive ? 'Sesi Absensi: AKTIF' : 'Sesi Absensi: NONAKTIF';
-    badge.className = 'session-status ' + (isActive ? 'status-active' : 'status-inactive');
+    if (mulai && selesai) {
+      $('#scheduleValue').textContent = mulai + ' – ' + selesai;
+      $('#scheduleWrap').style.display = 'block';
 
-    // Info box detail
-    var infoBox = $('#infoBox');
-    if (scheduledStarts && scheduledEnds) {
-      infoBox.style.display = 'block';
-      $('#infoStatus').textContent = isActive ? 'AKTIF' : 'NONAKTIF';
-      $('#infoSchedule').textContent = scheduledStarts + ' - ' + scheduledEnds;
-      $('#infoTime').textContent = serverTime || '-';
+      var note = $('#scheduleNote');
+      if (result.manual_override === 'NONAKTIF') {
+        note.textContent = 'Sesi dinonaktifkan sementara oleh petugas. Silakan coba lagi nanti.';
+      } else {
+        note.textContent = 'Silakan kembali pada jam tersebut untuk melakukan absensi.';
+      }
     } else {
-      infoBox.style.display = 'none';
+      $('#scheduleWrap').style.display = 'none';
     }
 
-    // Section aktif / nonaktif
-    if (isActive) {
-      $('#activeSection').style.display = 'block';
-      $('#inactiveSection').style.display = 'none';
+    show($('#inactiveScreen'));
+  }
+
+  // Sesi aktif -> LANGSUNG ke form pengisian nama.
+  // Pakai replace() supaya tombol "back" HP tidak kembali ke halaman ini.
+  function goToForm() {
+    window.location.replace('./login.html');
+  }
+
+  function handleStatus(result, siap) {
+    // Konfigurasi backend belum diisi / gagal memuat library
+    if (result.error && result.fallback) {
+      if (!siap) {
+        showError('Backend belum dikonfigurasi. Lengkapi URL + anon key di supabase-config.js lalu jalankan supabase/setup.sql.');
+      } else {
+        showError('Gagal menghubungi server. Periksa koneksi internet lalu coba lagi.');
+      }
+      return;
+    }
+
+    // RPC gagal (tabel/fungsi belum dibuat)
+    if (result.error && result.fallbackCompute) {
+      showError('Fungsi get_session_status() belum tersedia. Jalankan supabase/setup.sql di Supabase SQL Editor.');
+      return;
+    }
+
+    if (result.error) {
+      showError('Gagal memeriksa status: ' + (result.error || 'Kesalahan tidak diketahui'));
+      return;
+    }
+
+    if (result.active) {
+      goToForm();
     } else {
-      $('#activeSection').style.display = 'none';
-      $('#inactiveSection').style.display = 'block';
+      showInactive(result);
     }
   }
 
-  async function checkAndRender() {
-    $('#loading').style.display = 'block';
-    $('#contentArea').style.display = 'none';
-    $('#errorBox').style.display = 'none';
+  async function checkAndRender(attempt) {
+    attempt = attempt || 0;
+    showLoading();
 
     try {
-      // Tunggu sampai library & client siap (menghindari gagal pada percobaan pertama)
+      // Tunggu library & client siap (menghindari gagal pada percobaan pertama)
       var siap = await window.SBPag.ready();
-
-      // Cek status session dari server (backend = sumber kebenaran)
       var result = await window.SBPag.getSessionStatus();
 
-      if (result.error && result.fallback) {
-        // Konfigurasi belum diisi, atau koneksi backend gagal
-        if (!siap) {
-          showError('Backend belum dikonfigurasi. Silakan lengkapi URL + anon key di supabase-config.js lalu jalankan supabase/setup.sql di dashboard Supabase.');
-        } else {
-          showError('Gagal menghubungi server. Periksa koneksi internet lalu coba lagi.');
-        }
+      // Kalau gagal dan masih ada jatah retry, coba lagi otomatis
+      if (result.error && attempt < MAX_AUTO_RETRY) {
+        // Coba lagi otomatis setelah jeda singkat
+        setTimeout(function () { checkAndRender(attempt + 1); }, 900 * (attempt + 1));
         return;
       }
 
-      if (result.error && result.fallbackCompute) {
-        // RPC gagal (tabel belum dibuat atau permission), tampilkan pesan
-        showError('Gagal memeriksa status absensi. Pastikan tabel + fungsi get_session_status() sudah di-setup di Supabase (lihat supabase/setup.sql).');
-        return;
-      }
-
-      if (result.error) {
-        showError('Gagal memeriksa status: ' + (result.error || 'Kesalahan tidak diketahui'));
-        return;
-      }
-
-      renderStatus(result);
+      handleStatus(result, siap);
     } catch (err) {
       console.error('[CHECKIN] Exception:', err);
+      if (attempt < MAX_AUTO_RETRY) {
+        setTimeout(function () { checkAndRender(attempt + 1); }, 900 * (attempt + 1));
+        return;
+      }
       showError('Gagal memeriksa status: ' + (err.message || 'Kesalahan koneksi'));
     }
   }
 
-  // --- EVENT LISTENERS ---
-
   document.addEventListener('DOMContentLoaded', function () {
     if (!window.SBPag) {
       console.error('[CHECKIN] SBPag tidak tersedia — cek supabase-client.js');
-      showError('Klien backend tidak tersedia.');
+      showError('Klien backend tidak tersedia. Muat ulang halaman.');
       return;
     }
 
     window.SBPag.init();
-    checkAndRender();
+    checkAndRender(0);
 
-    // Tombol lanjut (aktif) -> ke proses login siswa (bagian D)
-    var btnLanjut = $('#btnLanjut');
-    if (btnLanjut) {
-      btnLanjut.addEventListener('click', function () {
-        window.location.href = './login.html';
-      });
+    var btnRetry = $('#btnRetry');
+    if (btnRetry) {
+      btnRetry.addEventListener('click', function () { checkAndRender(0); });
     }
-
-    // Tombol refresh / retry
-    ['btnRefresh', 'btnRetry'].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el) el.addEventListener('click', checkAndRender);
-    });
   });
 
 })();

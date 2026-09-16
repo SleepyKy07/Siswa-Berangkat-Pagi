@@ -71,8 +71,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script src="../assets/js/supabase-config.js?v=10"></script>
-<script src="../assets/js/supabase-client.js?v=10"></script>
+<script src="../assets/js/supabase-config.js?v=11"></script>
+<script src="../assets/js/supabase-client.js?v=11"></script>
 <script>
 'use strict';
 (function () {
@@ -144,12 +144,14 @@
     confirmBox = $('#confirmBox');
     btnLanjut = $('#btnLanjut');
 
-    // Cegah akses langsung via URL kalau sesi sedang nonaktif (cek server)
+    // Cegah akses langsung via URL kalau sesi sedang NONAKTIF.
+    // - Hanya redirect bila status BERHASIL dibaca dan memang nonaktif.
+    // - Bila error jaringan, JANGAN redirect (mencegah bolak-balik/loop).
     window.SBPag.getSessionStatus().then(function (status) {
-      if (status && !status.error && !status.active) {
-        window.location.href = './index.html';
+      if (status && !status.error && status.active === false) {
+        window.location.replace('./index.html');
       }
-    });
+    }).catch(function () { /* diamkan, biarkan halaman tetap tampil */ });
 
     namaInput.addEventListener('input', refresh);
     kelasInput.addEventListener('input', refresh);

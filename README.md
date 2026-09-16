@@ -27,8 +27,12 @@ Program absensi sekolah menggunakan QR permanen + server-side validation.
 ```
 QR permanen di gerbang
    ↓
-Cek status sesi (server)  → NONAKTIF? tampilkan "Absensi sedang tidak aktif"
-   ↓ AKTIF
+Halaman /checkin/ cek status ke server
+   ↓
+   ├─ AKTIF    → LANGSUNG pindah ke form pengisian nama
+   ├─ NONAKTIF → tampil tulisan besar "ABSENSI TIDAK AKTIF" + jadwal (tanpa tombol)
+   └─ ERROR    → pesan jelas + tombol "Coba Lagi"
+   ↓ (bila aktif)
 Isi nama & kelas (siswa mengetik sendiri)
    ↓
 Ambil selfie (kamera browser: preview → ambil → foto ulang / gunakan foto)
@@ -38,6 +42,27 @@ Konfirmasi → Simpan check-in (timestamp SERVER) + catat ke data pending
 
 Identitas yang dipakai hanya: **nama**, **kelas**, **selfie**, **timestamp server**.
 NIS **tidak diminta** dan **tidak pernah dikirim ke frontend**.
+
+### Catatan tentang riwayat browser
+
+Browser **tidak mengizinkan** situs menghapus riwayat pengguna — ini aturan keamanan
+universal, bukan keterbatasan aplikasi. Karena QR bersifat **permanen**, siswa yang
+pernah scan bisa membuka halaman lewat riwayat **tanpa scan ulang**.
+
+Namun ini **tidak merugikan**, karena keabsahan absensi ditentukan server:
+
+| Lapisan | Fungsi |
+|---------|--------|
+| Sesi harus AKTIF | `submit_checkin_manual()` menolak bila NONAKTIF / di luar jadwal |
+| Anti-duplikat | 1 nama+kelas = 1 check-in per hari |
+| Waktu server | `current_date` & `now()` dari Postgres, jam HP tidak berpengaruh |
+
+Jadi: buka lewat riwayat **boleh**, tetapi **tidak bisa** absen di luar jam dan
+**tidak bisa** dobel dalam satu hari.
+
+> Kekhawatiran yang sah: riwayat tidak bisa mencegah absen "dari rumah". Bila itu
+> jadi masalah, aktifkan kembali validasi lokasi GPS (`assets/js/location-check.js`,
+> saat ini dimatikan lewat `SCHOOL_GATE = null`).
 
 ## Anti-Duplikat
 
