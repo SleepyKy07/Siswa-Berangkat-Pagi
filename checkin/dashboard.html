@@ -15,7 +15,7 @@
     .max-w{max-width:720px;margin:auto;padding:16px}
     .card{background:var(--card);border:1px solid rgba(216,235,232,.8);border-radius:var(--radius);padding:22px;box-shadow:0 8px 24px rgba(15,118,110,.07);margin-bottom:16px}
     h2{font-size:1.1rem;color:var(--primary-dark);margin-bottom:14px}
-    .section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+    .section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px}
     .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin:12px 0}
     .stat{padding:15px;border-radius:15px;background:#f0fdfa;border:1px solid #c9eeea}
     .stat span{display:block;color:var(--muted);font-size:.74rem;font-weight:700}
@@ -29,16 +29,15 @@
     .btn.primary:hover{background:var(--primary-dark)}
     .btn.soft{background:#e6f6f3;color:var(--primary-dark)}
     .btn.danger{background:#fee2e2;color:var(--danger)}
-    .btn-small{padding:8px 11px;font-size:.76rem;min-height:36px}
+    .btn-small{padding:7px 10px;font-size:.74rem;min-height:32px}
     .notice{padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:.83rem}
     table{width:100%;border-collapse:collapse;font-size:.82rem;margin:12px 0}
-    th,td{padding:11px;border-bottom:1px solid var(--line);text-align:left}
+    th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left}
     th{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;background:#f5fbfa}
     tr:last-child td{border-bottom:0}
     .empty{text-align:center;color:var(--muted);padding:20px 10px}
-    .progress{height:7px;border-radius:99px;background:#e5e7eb;overflow:hidden}
-    .progress i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),#f97316);border-radius:inherit}
     .small{font-size:.78rem;color:var(--muted)}
+    .gold{background:linear-gradient(135deg,#fef3c7,#fde68a);border-color:#fbbf24}
     .modal-overlay{position:fixed;inset:0;background:rgba(19,78,74,.55);z-index:1100;display:none;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(3px)}
     .modal-overlay.buka{display:flex}
     .modal-box{background:#fff;border-radius:18px;max-width:520px;width:100%;max-height:88vh;overflow:auto;padding:20px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
@@ -46,22 +45,28 @@
     .modal-head h3{font-size:1.05rem;color:var(--primary-dark)}
     .modal-close{border:none;background:#f0fdfa;color:var(--primary-dark);font-size:1.4rem;line-height:1;width:34px;height:34px;border-radius:50%;cursor:pointer}
     .modal-close:hover{background:#d9f3ee}
+    .selfie-img{width:100%;border-radius:12px;border:1px solid var(--line);display:block;margin-top:10px}
+    #selfieLoading{padding:24px;text-align:center;color:var(--muted);font-size:.83rem}
   </style>
 </head>
 <body>
 
-<header class="back-bar"><a href="./index.html"><span>&#8592;</span> Kembali ke Check-in</a></header>
+<header class="back-bar" style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+  <a href="./index.html"><span>&#8592;</span> Kembali ke Check-in</a>
+  <button type="button" id="btnLogout" style="border:1px solid rgba(255,255,255,.4);background:transparent;color:#fff;border-radius:8px;padding:6px 12px;font:700 .76rem inherit;cursor:pointer;">Keluar</button>
+</header>
 
 <div class="max-w">
 
   <div class="card">
     <div class="section-head">
       <h2>&#128214; Dashboard Admin</h2>
-      <div class="action-row">
-        <button class="btn soft" id="btnToggleInactive">🔴 Nonaktifkan Absensi</button>
-        <button class="btn soft" id="btnToggleActive">🟢 Aktifkan Absensi</button>
+      <div class="action-row" style="margin:0">
+        <button class="btn soft" id="btnToggleInactive">&#128308; Nonaktifkan Absensi</button>
+        <button class="btn soft" id="btnToggleActive">&#128994; Aktifkan Absensi</button>
       </div>
     </div>
+    <p class="small">Data diperbarui otomatis dari server. Waktu memakai jam server, bukan jam device siswa.</p>
   </div>
 
   <!-- Status Summary -->
@@ -70,35 +75,39 @@
     <div id="statusDisplay" class="stats"></div>
   </div>
 
-<!-- Auto Schedule -->
+  <!-- Auto Schedule -->
   <div class="card">
     <h2>&#9201; Jadwal Otomatis</h2>
     <p class="small" style="margin-bottom:10px">Sesi otomatis AKTIF di antara jam mulai dan selesai (waktu server). Tanpa override manual, status mengikuti jadwal ini.</p>
-    <div class="grid" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
       <label style="display:grid;gap:6px;font-size:.77rem;font-weight:700;color:var(--muted)">Jam Mulai
-        <input type="time" id="scheduleStart">
+        <input type="time" id="scheduleStart" style="border:1.5px solid var(--line);border-radius:12px;padding:10px;font:inherit">
       </label>
       <label style="display:grid;gap:6px;font-size:.77rem;font-weight:700;color:var(--muted)">Jam Selesai
-        <input type="time" id="scheduleEnd">
+        <input type="time" id="scheduleEnd" style="border:1.5px solid var(--line);border-radius:12px;padding:10px;font:inherit">
       </label>
     </div>
     <div class="action-row">
-      <button class="btn primary" id="btnSaveSchedule">Simpan Jadwal Automatis</button>
+      <button class="btn primary" id="btnSaveSchedule">Simpan Jadwal Otomatis</button>
       <button class="btn soft" id="btnClearSchedule">Hapus Override Manual</button>
     </div>
     <div class="small" style="margin-top:6px">Contoh: 06:00 &ndash; 07:00 = otomatis aktif pukul 06:00, nonaktif pukul 07:00.</div>
   </div>
 
   <!-- Siswa Paling Pagi -->
-  <div class="card">
+  <div class="card gold">
     <h2>&#127942; Siswa Paling Pagi</h2>
     <div id="earliestContainer" class="empty">Memuat&hellip;</div>
   </div>
 
   <!-- Check-in Hari Ini -->
   <div class="card">
-    <h2>Check-in Hari Ini</h2>
+    <div class="section-head">
+      <h2>Check-in Hari Ini</h2>
+      <button class="btn soft btn-small" id="btnReload">&#8637; Muat Ulang</button>
+    </div>
     <div id="todayCheckinsContainer" class="empty">Memuat&hellip;</div>
+    <p class="small" style="margin-top:8px">&#128274; Selfie disimpan di storage privat. Tombol &ldquo;Lihat Selfie&rdquo; membuat tautan sementara (berlaku 60 detik).</p>
   </div>
 
 </div>
@@ -111,195 +120,312 @@
       <button class="modal-close" id="btnCloseModal">&times;</button>
     </div>
     <form id="formToggle">
-      <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
-        <label>Aktifkan Sesi?</label><label><input type="radio" name="mode" value="active" checked></label>
-        <label>Nonaktifkan Sesi?</label><label><input type="radio" name="mode" value="inactive"></label>
-      </div>
-      <div class="actions" style="grid-column:1/-1;margin-top:12px">
+      <label style="display:flex;gap:8px;align-items:center;font-size:.85rem;margin-bottom:8px"><input type="radio" name="mode" value="active" checked> Aktifkan Sesi</label>
+      <label style="display:flex;gap:8px;align-items:center;font-size:.85rem;margin-bottom:8px"><input type="radio" name="mode" value="inactive"> Nonaktifkan Sesi</label>
+      <div class="action-row" style="justify-content:flex-end">
         <button type="button" class="btn soft" id="btnCancelToggle">Batal</button>
-        <button type="submit" class="btn primary" id="btnConfirmToggle">Simpan</button>
+        <button type="submit" class="btn primary">Simpan</button>
       </div>
     </form>
   </div>
 </div>
 
-<script type="module">
-  import SBPag from './assets/js/supabase-client.js';
+<!-- Modal Selfie -->
+<div class="modal-overlay" id="modalSelfie">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3>&#128247; Selfie Check-in</h3>
+      <button class="modal-close" id="btnCloseSelfie">&times;</button>
+    </div>
+    <div id="selfieLoading">Membuat tautan sementara&hellip;</div>
+    <img id="selfieImg" class="selfie-img" style="display:none" alt="Selfie siswa">
+    <p class="small" id="selfieError" style="margin-top:10px;display:none;"></p>
+  </div>
+</div>
 
-  // Inisialisasi
-  SBPag.init();
+<!-- Gerbang PIN -->
+<div class="modal-overlay" id="pinGate" style="display:none;">
+  <div class="modal-box" style="max-width:360px;">
+    <div class="modal-head">
+      <h3>&#128274; Akses Dashboard</h3>
+    </div>
+    <p class="small" style="margin-bottom:10px">Masukkan PIN petugas OSIS untuk membuka dashboard.</p>
+    <input type="password" id="pinInput" inputmode="numeric" autocomplete="off" placeholder="PIN"
+      style="width:100%;border:1.5px solid var(--line);border-radius:12px;padding:12px;font:inherit;letter-spacing:.2em;text-align:center">
+    <p class="small" id="pinError" style="color:var(--danger);margin-top:8px;display:none;"></p>
+    <div class="action-row" style="justify-content:flex-end;margin-top:12px">
+      <a href="./index.html" class="btn soft" style="text-decoration:none;display:inline-flex;align-items:center;">Batal</a>
+      <button type="button" class="btn primary" id="btnPinSubmit">Masuk</button>
+    </div>
+  </div>
+</div>
+
+<script src="../assets/js/supabase-config.js"></script>
+<script src="../assets/js/supabase-client.js"></script>
+<script>
+'use strict';
+(function () {
+  function $(s) { return document.querySelector(s); }
+
+  function escapeHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function fmtTime(ts) {
+    try { return new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+    catch (e) { return ts; }
+  }
+  function fmtFull(ts) {
+    try { return new Date(ts).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'medium' }); }
+    catch (e) { return ts; }
+  }
 
   document.addEventListener('DOMContentLoaded', function () {
+    if (!window.SBPag) {
+      alert('Klien backend tidak tersedia. Cek assets/js/supabase-client.js');
+      return;
+    }
+    window.SBPag.init();
+
+    // ---- GERBANG PIN (proteksi ringan) ----
+    var PIN_KEY = 'sbDashboardUnlocked';
+    var cfg = window.SUPABASE_CONFIG || {};
+    var pinGate = $('#pinGate');
+
+    function unlockDashboard() {
+      pinGate.style.display = 'none';
+      startDashboard();
+    }
+
+    function askPin() {
+      pinGate.style.display = 'flex';
+      $('#pinInput').value = '';
+      $('#pinError').style.display = 'none';
+      $('#pinInput').focus();
+      $('#pinInput').addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') submitPin();
+      });
+      $('#btnPinSubmit').addEventListener('click', submitPin);
+    }
+
+    function submitPin() {
+      var val = $('#pinInput').value;
+      if (val === (cfg.dashboardPin || '1234')) {
+        try { sessionStorage.setItem(PIN_KEY, '1'); } catch (e) { /* ignore */ }
+        unlockDashboard();
+      } else {
+        $('#pinError').textContent = 'PIN salah. Coba lagi.';
+        $('#pinError').style.display = 'block';
+        $('#pinInput').value = '';
+      }
+    }
+
+    function startDashboard() {
+      initDashboard();
+    }
+
+    // Cek status PIN tersimpan (berlaku per sesi tab)
+    var unlocked = false;
+    try { unlocked = sessionStorage.getItem(PIN_KEY) === '1'; } catch (e) { /* ignore */ }
+    if (unlocked) {
+      unlockDashboard();
+    } else {
+      askPin();
+    }
+
     var statusCard = $('#statusCard');
     var earliestContainer = $('#earliestContainer');
     var todayCheckinsContainer = $('#todayCheckinsContainer');
-    var btnToggleInactive = $('#btnToggleInactive');
-    var btnToggleActive = $('#btnToggleActive');
     var modalToggle = $('#modalToggle');
     var formToggle = $('#formToggle');
+    var modalSelfie = $('#modalSelfie');
 
-    // Fungsi tampilkan loading sementara
-    function showLoading(el) { el.innerHTML = '<div class="notice">Memeriksa status server...</div>'; }
+    function showLoading(el) { el.innerHTML = '<div class="notice">Memeriksa status server&hellip;</div>'; }
 
-    // 1. Cek status awal dan render
+    // 1. Muat & render dashboard
     async function initDashboard() {
       showLoading(earliestContainer);
       showLoading(todayCheckinsContainer);
 
       // A. Status sesi
-      var statusResult = await SBPag.getSessionStatus();
+      var statusResult = await window.SBPag.getSessionStatus();
       if (statusResult.error) {
-        alert('Gagal memeriksa status backend: ' + statusResult.detail);
+        statusCard.style.display = 'block';
+        $('#statusDisplay').innerHTML =
+          '<div class="stat"><span>Status</span><b class="tag batal">ERROR</b></div>' +
+          '<div class="stat"><span>Detail</span><br>' + escapeHtml(statusResult.error) + '</div>';
+        earliestContainer.innerHTML = '<div class="empty">Tidak bisa memuat data.</div>';
+        todayCheckinsContainer.innerHTML = '<div class="empty">Tidak bisa memuat data.</div>';
         return;
       }
 
-      // Render status badge
       statusCard.style.display = 'block';
       if (statusResult.active) {
         $('#statusDisplay').innerHTML =
           '<div class="stat"><span>Status</span><b class="tag sukses">AKTIF</b></div>' +
-          '<div class="stat"><span>Manual Override</span><br>' + (statusResult.manual_override || 'Tidak ada') + '</div>' +
-          '<div class="stat"><span>Jadwal Otomatis</span><br>' + (statusResult.scheduled_starts_at || '-') + ' - ' + (statusResult.scheduled_ends_at || '-') + '</div>';
+          '<div class="stat"><span>Override Manual</span><br>' + escapeHtml(statusResult.manual_override || 'Tidak ada') + '</div>' +
+          '<div class="stat"><span>Jadwal Otomatis</span><br>' + escapeHtml(statusResult.scheduled_starts_at || '-') + ' - ' + escapeHtml(statusResult.scheduled_ends_at || '-') + '</div>' +
+          '<div class="stat"><span>Waktu Server</span><br>' + escapeHtml(statusResult.server_time || '-') + '</div>';
       } else {
         $('#statusDisplay').innerHTML =
           '<div class="stat"><span>Status</span><b class="tag batal">NONAKTIF</b></div>' +
-          '<div class="stat"><span>Alasan</span><br>' + (statusResult.manual_override || 'Diluar jadwal otomatis') + '</div>' +
-          '<div class="stat"><span>Jadwal Otomatis</span><br>' + (statusResult.scheduled_starts_at || '-') + ' - ' + (statusResult.scheduled_ends_at || '-') + '</div>';
+          '<div class="stat"><span>Alasan</span><br>' + escapeHtml(statusResult.manual_override || 'Diluar jadwal otomatis') + '</div>' +
+          '<div class="stat"><span>Jadwal Otomatis</span><br>' + escapeHtml(statusResult.scheduled_starts_at || '-') + ' - ' + escapeHtml(statusResult.scheduled_ends_at || '-') + '</div>' +
+          '<div class="stat"><span>Waktu Server</span><br>' + escapeHtml(statusResult.server_time || '-') + '</div>';
       }
 
-      // B. Siswa paling pagi (earliest check-in)
-      var earliest = await SBPag.getEarliestCheckInToday();
+      // B. Siswa paling pagi
+      var earliest = await window.SBPag.getEarliestCheckInToday();
       if (earliest) {
         earliestContainer.innerHTML =
-          '<div class="stat"><strong>' + escapeHtml(earliest.student.nama) + '</strong></div>' +
-          '<div class="stat"><span>Waktu</span><br>' + earliest.timestamp + '</div>' +
-          '<div class="stat"><span>NIS</span><br>' + escapeHtml(earliest.student.nis) + '</div>';
+          '<div class="stat" style="background:#fff"><strong style="font-size:1.1rem;color:var(--primary-dark)">' + escapeHtml(earliest.student.nama) + '</strong></div>' +
+          '<div class="stat" style="background:#fff"><span>Kelas</span><br>' + escapeHtml(earliest.student.kelas || '-') + '</div>' +
+          '<div class="stat" style="background:#fff"><span>Waktu</span><br>' + escapeHtml(fmtTime(earliest.timestamp)) + '</div>';
       } else {
         earliestContainer.innerHTML = '<div class="empty">Belum ada check-in hari ini.</div>';
       }
 
       // C. Daftar check-in hari ini
-      var checkIns = await SBPag.getTodayCheckIns();
+      var checkIns = await window.SBPag.getTodayCheckIns();
       renderTodayCheckins(checkIns);
     }
 
-    // Render daftar check-in
     function renderTodayCheckins(checkIns) {
       if (!checkIns || checkIns.length === 0) {
         todayCheckinsContainer.innerHTML = '<div class="empty">Belum ada check-in hari ini.</div>';
         return;
       }
 
-      var html = `
-        <table>
-          <thead>
-            <tr>
-              <th>No</th>
-              <th>Siswa</th>
-              <th>NIS</th>
-              <th>Kelas</th>
-              <th>Waktu</th>
-              <th>Selfie</th>
-            </tr>
-          </thead>
-          <tbody>
-      `;
-      checkIns.sort(function (a, b) { return new a.checked_in_at - new b.checked_in_at; });
+      // Urut paling pagi dulu (perbaikan bug: pakai new Date(...))
+      checkIns.sort(function (a, b) { return new Date(a.checked_in_at) - new Date(b.checked_in_at); });
+
+      var html = '<table><thead><tr>' +
+        '<th>No</th><th>Nama</th><th>Kelas</th><th>Waktu</th><th>Selfie</th>' +
+        '</tr></thead><tbody>';
+
       checkIns.forEach(function (ci, idx) {
-        var s = ci.students;
-        var hasSelfie = s && s.selfie_path ? '<span class="tag sukses">Sudah</span>' : '-';
-        html += '<tr>' +
-          '<td>' + (idx + 1) + '</td>' +
-          '<td>' + escapeHtml(s.nama) + '</td>' +
-          '<td>' + escapeHtml(s.nis || '-') + '</td>' +
+        var s = ci.students || {};
+        var no = idx + 1;
+        var isEarliest = idx === 0;
+        var selfieCell;
+        if (ci.selfie_path) {
+          selfieCell = '<button class="btn soft btn-small btn-selfie" data-path="' + escapeHtml(ci.selfie_path) + '" data-nama="' + escapeHtml(s.nama || '') + '">&#128247; Lihat</button>';
+        } else {
+          selfieCell = '<span class="small">-</span>';
+        }
+        html += '<tr' + (isEarliest ? ' style="background:#fffbeb"' : '') + '>' +
+          '<td>' + no + '</td>' +
+          '<td>' + escapeHtml(s.nama || '-') + (isEarliest ? ' <span class="tag">paling pagi</span>' : '') + '</td>' +
           '<td>' + escapeHtml(s.kelas || '-') + '</td>' +
-          '<td>' + new Date(ci.checked_in_at).toLocaleTimeString('id-ID') + '</td>' +
-          '<td>' + hasSelfie + '</td>' +
+          '<td>' + escapeHtml(fmtTime(ci.checked_in_at)) + '</td>' +
+          '<td>' + selfieCell + '</td>' +
           '</tr>';
       });
       html += '</tbody></table>';
       todayCheckinsContainer.innerHTML = html;
-    }
 
-    // Escape HTML
-    function escapeHtml(v) {
-      return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
-        return { '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[c];
+      // Pasang handler tombol selfie
+      Array.prototype.forEach.call(todayCheckinsContainer.querySelectorAll('.btn-selfie'), function (btn) {
+        btn.addEventListener('click', function () { openSelfie(btn.getAttribute('data-path'), btn.getAttribute('data-nama')); });
       });
     }
 
-    // 2. Tombol AKTIF / NONAKTIF -> buka modal
-    btnToggleActive.addEventListener('click', function () {
-      formToggle.querySelector('input[name="mode"]').value = 'active';
+    // 2. Lihat selfie via signed URL sementara
+    async function openSelfie(path, nama) {
+      $('#selfieImg').style.display = 'none';
+      $('#selfieError').style.display = 'none';
+      $('#selfieLoading').style.display = 'block';
+      $('#selfieLoading').textContent = 'Membuat tautan sementara untuk ' + (nama || 'siswa') + '…';
+      modalSelfie.classList.add('buka');
+
+      var res = await window.SBPag.getSelfieUrl(path);
+      $('#selfieLoading').style.display = 'none';
+
+      if (res.error || !res.url) {
+        $('#selfieError').style.display = 'block';
+        $('#selfieError').textContent = 'Gagal membuka selfie: ' + (res.detail || res.error || 'tidak diketahui');
+        return;
+      }
+      $('#selfieImg').src = res.url;
+      $('#selfieImg').style.display = 'block';
+    }
+
+    function closeSelfie() {
+      modalSelfie.classList.remove('buka');
+      $('#selfieImg').src = '';
+    }
+
+    // 3. Toggle sesi
+    $('#btnToggleActive').addEventListener('click', function () {
+      formToggle.querySelector('input[value="active"]').checked = true;
       modalToggle.classList.add('buka');
     });
-    btnToggleInactive.addEventListener('click', function () {
-      formToggle.querySelector('input[name="mode"]').value = 'inactive';
+    $('#btnToggleInactive').addEventListener('click', function () {
+      formToggle.querySelector('input[value="inactive"]').checked = true;
       modalToggle.classList.add('buka');
     });
 
-    // 3. Submit modal toggle
     formToggle.addEventListener('submit', function (e) {
       e.preventDefault();
       var mode = formToggle.querySelector('input[name="mode"]:checked').value;
       var reason = prompt('Alasan mengubah status:', '');
-      if (reason === null) return; // dibatalkan
+      if (reason === null) return;
 
-      if (mode === 'active') {
-        SBPag.setSessionActive(reason || 'Diaktifkan admin').then(function (res) {
-          if (res.error) alert('Gagal mengaktifkan: ' + res.detail);
-          else initDashboard(); // refresh
-          modalToggle.classList.remove('buka');
-        });
-      } else {
-        SBPag.setSessionInactive(reason || 'Dinaktiifkan admin').then(function (res) {
-          if (res.error) alert('Gagal nonaktifkan: ' + res.detail);
-          else initDashboard(); // refresh
-          modalToggle.classList.remove('buka');
-        });
-      }
+      var p = mode === 'active'
+        ? window.SBPag.setSessionActive(reason || 'Diaktifkan admin')
+        : window.SBPag.setSessionInactive(reason || 'Dinonaktifkan admin');
+
+      p.then(function (res) {
+        if (res.error) { alert('Gagal mengubah status: ' + res.detail); return; }
+        modalToggle.classList.remove('buka');
+        initDashboard();
+      });
     });
 
-    // 4. Cancel modal
-    document.querySelectorAll('#btnCloseModal, #btnCancelToggle').forEach(function (el) {
-      el.addEventListener('click', function () { modalToggle.classList.remove('buka'); });
+    // 4. Tutup modal
+    ['btnCloseModal', 'btnCancelToggle'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('click', function () { modalToggle.classList.remove('buka'); });
+    });
+    $('#btnCloseSelfie').addEventListener('click', closeSelfie);
+    modalSelfie.addEventListener('click', function (e) { if (e.target === modalSelfie) closeSelfie(); });
+
+    // 5. Reload manual
+    $('#btnReload').addEventListener('click', initDashboard);
+
+    // Tombol keluar (hapus status PIN)
+    $('#btnLogout').addEventListener('click', function () {
+      try { sessionStorage.removeItem('sbDashboardUnlocked'); } catch (e) { /* ignore */ }
+      window.location.reload();
     });
 
-    // Inisialisasi
-    initDashboard();
-
-    // --- Auto Schedule handlers ---
+    // 6. Auto schedule
     var scheduleStart = $('#scheduleStart');
     var scheduleEnd = $('#scheduleEnd');
-    var btnSaveSchedule = $('#btnSaveSchedule');
-    var btnClearSchedule = $('#btnClearSchedule');
 
-    if (btnSaveSchedule) {
-      btnSaveSchedule.addEventListener('click', async function () {
-        var starts = scheduleStart ? scheduleStart.value : '';
-        var ends = scheduleEnd ? scheduleEnd.value : '';
-        if (!starts || !ends) return alert('Isi jam mulai dan jam selesai.');
+    $('#btnSaveSchedule').addEventListener('click', async function () {
+      var starts = scheduleStart.value;
+      var ends = scheduleEnd.value;
+      if (!starts || !ends) { alert('Isi jam mulai dan jam selesai.'); return; }
+      var result = await window.SBPag.setSchedule(starts, ends);
+      if (result.error) { alert('Gagal simpan jadwal: ' + result.detail); return; }
+      scheduleStart.value = '';
+      scheduleEnd.value = '';
+      initDashboard();
+    });
 
-        var result = await SBPag.setSchedule(starts, ends);
-        if (result.error) alert('Gagal simpan jadwal: ' + result.detail);
-        else {
-          // Refresh dashboard
-          initDashboard();
-          scheduleStart.value = '';
-          scheduleEnd.value = '';
-        }
-      });
-    }
+    $('#btnClearSchedule').addEventListener('click', async function () {
+      if (!confirm('Hapus override manual jadwal otomatis?')) return;
+      var result = await window.SBPag.setSchedule('', '');
+      if (result.error) { alert('Gagal hapus override: ' + result.detail); return; }
+      initDashboard();
+    });
 
-    if (btnClearSchedule) {
-      btnClearSchedule.addEventListener('click', async function () {
-        if (!confirm('Hapus override manual jadwal otomatis?')) return;
-        var result = await SBPag.setSchedule('', ''); // clear manual override
-        if (result.error) alert('Gagal hapus override: ' + result.detail);
-        else initDashboard();
-      });
-    }
+    // Mulai: dashboard hanya dimuat setelah PIN benar (lihat blok gerbang PIN)
   });
+})();
 </script>
 
 </body>

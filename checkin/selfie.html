@@ -15,13 +15,16 @@
     .max-w{max-width:400px;margin:auto;padding:16px}
     .card{background:var(--card);border:1px solid rgba(216,235,232,.8);border-radius:var(--radius);padding:22px;box-shadow:0 8px 24px rgba(15,118,110,.07);margin-bottom:16px}
     h2{font-size:1.1rem;color:var(--primary-dark);margin-bottom:6px}
-    .sub{font-size:.82rem;color:var(--muted);margin-bottom:16px}
+    .sub{font-size:.82rem;color:var(--muted);margin-bottom:12px}
+    .who{background:#f0fdfa;border:1px solid #c9eeea;border-radius:12px;padding:10px 14px;font-size:.82rem;color:var(--primary-dark);margin-bottom:14px}
+    .who b{color:var(--primary-dark)}
     .video-wrap{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:12px;overflow:hidden;margin-bottom:12px}
     video{width:100%;height:100%;object-fit:cover}
     canvas{display:none}
     .btn{border:0;border-radius:11px;padding:12px 16px;min-height:42px;font:700 .82rem inherit;cursor:pointer;transition:.18s;width:100%;background:var(--primary);color:#fff}
     .btn:hover{background:var(--primary-dark)}
     .btn.soft{background:#e6f6f3;color:var(--primary-dark)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
     .btn-row{display:flex;gap:9px;margin-top:12px;flex-wrap:wrap}
     .btn-row .btn{flex:1}
     .notice{padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:.82rem}
@@ -35,12 +38,13 @@
 </head>
 <body>
 
-<header class="back-bar"><a href="./login.html"><span>&#8592;</span> Kembali</a></header>
+<header class="back-bar"><a href="./login.html"><span>&#8592;</span> Ganti Nama</a></header>
 
 <div class="max-w">
   <div class="card">
     <h2>&#128247; Selfie Check-in</h2>
     <p class="sub">Ambil foto wajah sebagai bukti kehadiran di gerbang.</p>
+    <div class="who" id="whoBox">Memuat identitas&#8230;</div>
 
     <div class="video-wrap" id="videoWrap">
       <video id="video" playsinline muted></video>
@@ -49,20 +53,20 @@
 
     <div class="notice" id="permissionNotice" style="display:none;">&#9888; Akses kamera ditolak. Tidak bisa mengambil selfie. Hubungi petugas.</div>
 
-    <div class="btn-row" id="controlsHidden" class="hidden">
+    <div class="btn-row hidden" id="controlsHidden">
       <button type="button" class="btn" id="btnCapture">&#128248; Ambil Foto</button>
     </div>
 
     <div class="btn-row hidden" id="controlsPreview">
       <button type="button" class="btn soft" id="btnRetake">&#8637; Foto Ulang</button>
-      <button type="button" class="btn primary" id="btnUse">Gunakan Foto</button>
+      <button type="button" class="btn" id="btnUse">Gunakan Foto</button>
     </div>
 
     <div class="preview hidden" id="previewBox">
       <img id="previewImg" alt="Preview selfie">
     </div>
 
-    <div class="privacy">&#128274; <strong>Penggunaan foto:</strong> Selfie hanya digunakan sebagai bukti check-in kehadiran di gerbang. Data tidak dibagikan ke publik dan akan dihapus sesuai kebijakan sekolah.</div>
+    <div class="privacy">&#128274; <strong>Penggunaan foto:</strong> Selfie hanya digunakan sebagai bukti check-in kehadiran di gerbang. Foto disimpan di penyimpanan privat (tidak publik), hanya dapat dilihat pihak berwenang, dan tidak dipakai untuk face recognition.</div>
   </div>
 </div>
 
@@ -76,21 +80,34 @@
   var ctx = canvas.getContext('2d');
   var stream = null;
   var studentData = null;
-  var locationStatus = null; // {state, reason, ...}
 
   document.addEventListener('DOMContentLoaded', function () {
-    // Cek status session (server) dan validasi identitas siswa
+    if (!window.SBPag) {
+      alert('Klien backend tidak tersedia. Cek assets/js/supabase-client.js');
+      return;
+    }
+    window.SBPag.init();
+
+    // Validasi identitas siswa (harus dipilih dari halaman sebelumnya)
     var stored = sessionStorage.getItem('sbCheckinStudent');
     if (!stored) {
       window.location.href = './login.html';
       return;
     }
-    try { studentData = JSON.parse(stored); } catch (e) { window.location.href = './login.html'; return; }
+    try {
+      studentData = JSON.parse(stored);
+    } catch (e) {
+      window.location.href = './login.html';
+      return;
+    }
+    if (!studentData || !studentData.id) {
+      window.location.href = './login.html';
+      return;
+    }
 
-    // Mulai validasi lokasi terlebih dahulu (anti-asrama)
-    startLocationCheck();
+    // Tampilkan identitas (nama + kelas) — TANPA NIS
+    $('#whoBox').innerHTML = 'Nama: <b>' + escapeHtml(studentData.nama) + '</b> &middot; Kelas: <b>' + escapeHtml(studentData.kelas || '-') + '</b>';
 
-    // Start camera
     startCamera();
 
     $('#btnCapture').addEventListener('click', capturePhoto);
@@ -98,57 +115,18 @@
     $('#btnUse').addEventListener('click', submitCheckIn);
   });
 
-  async function startLocationCheck() {
-    // Kumpulkan lokasi browser
-    locationStatus = await window.SBPag.collectLocationContext();
-
-    // Tampilkan status lokasi ke user
-    showLocationInfo();
-
-    // Jika location denied, kita masih bisa melanjutkan tapi beri peringatan
-    if (locationStatus.state === 'DENIED') {
-      $('#warningNotice').style.display = 'block';
-      $('#warningNotice').innerHTML =
-        '<div class="notice"><strong>⚠️ Lokasi tidak diaktifkan</strong><br>' +
-        'Absensi akan dicatat tanpa validasi jarak dari gerbang.' +
-        '</div>';
-    }
-    // Jika skipped (validasi lokasi dimatikan di config) → diam saja
-    else if (locationStatus.state === 'SKIPPED') {
-      return; // tanpa notifikasi
-    }
-  }
-
-  function showLocationInfo() {
-    // Jika SKIPPED (lokasi dinonaktifkan) → tanpa notifikasi apapun
-    if (locationStatus.state === 'SKIPPED') return;
-
-    var locDiv = $('#locationInfo');
-    if (!locDiv) {
-      locDiv = document.createElement('div');
-      locDiv.id = 'locationInfo';
-      locDiv.className = 'notice small';
-      // Let's insert after privacy
-      var privacy = $('#privacy');
-      if (privacy && privacy.parentNode) {
-        privacy.parentNode.insertBefore(locDiv, privacy.nextSibling);
-      }
-    }
-
-    if (locationStatus.state === 'OK' && locationStatus.withinRadius !== undefined) {
-      if (locationStatus.withinRadius) {
-        locDiv.innerHTML = '<div class="notice ok">✅ Di dalam radius gerbang (' + locationStatus.distanceMeters + ' m)</div>';
-      } else {
-        locDiv.innerHTML = '<div class="notice"><strong>⚠️ Luar radius gerbang</strong> (' + locationStatus.distanceMeters + ' m dari gerbang). Absensi mungkin tidak valid.</div>';
-      }
-    } else if (locationStatus.state === 'DENIED') {
-      locDiv.innerHTML = '<div class="notice"><strong>⚠️ Akses lokasi ditolak</strong>. Absensi tetap bisa dilakukan.</div>';
-    } else if (locationStatus.state === 'UNSUPPORTED') {
-      locDiv.innerHTML = '<div class="notice"><strong>⚠️ Browser tidak dukungan geolocation</strong>.</div>';
-    }
+  function escapeHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
   }
 
   function startCamera() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      $('#videoWrap').style.display = 'none';
+      $('#permissionNotice').style.display = 'block';
+      return;
+    }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
       .then(function (s) {
         stream = s;
@@ -166,8 +144,8 @@
   }
 
   function capturePhoto() {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     // Stop video stream
@@ -195,34 +173,34 @@
   async function submitCheckIn() {
     var btn = $('#btnUse');
     btn.disabled = true;
-    btn.textContent = 'Mengirim&#8230;';
+    btn.textContent = 'Mengirim…';
 
     try {
-      // Ambil data selfie ke submitCheckIn
       var selfieDataUrl = $('#previewImg').src;
 
-      // Lakukan check-in dengan data lokasi dari sebelumnya
-      var result = await window.SBPag.submitCheckIn(studentData.nis, selfieDataUrl, locationStatus);
+      // Kirim id internal siswa (bukan NIS). Server mengambil nama & kelas.
+      var result = await window.SBPag.submitCheckIn(studentData.id, selfieDataUrl);
 
       if (result.error) {
-        alert('Gagal check-in: ' + (result.detail || result.error));
+        // Pesan yang lebih ramah untuk kondisi umum
+        var msg = result.detail || result.error;
+        if (result.error === 'SUDAH_CHECKIN_HARI_INI') {
+          msg = 'Anda sudah melakukan absensi hari ini.';
+        } else if (result.error === 'ABSENSI_TIDAK_AKTIF') {
+          msg = 'Sesi absensi sedang tidak aktif. Silakan cek kembali sesuai jadwal.';
+        } else if (result.error === 'SISWA_TIDAK_DITEMUKAN') {
+          msg = 'Data siswa tidak ditemukan. Silakan pilih nama ulang.';
+        }
+        alert('Gagal check-in: ' + msg);
         btn.disabled = false;
         btn.textContent = 'Gunakan Foto';
         return;
       }
 
-      // Sukses - simpan untuk halaman sukses, bersihkan temporary login state
+      // Sukses — simpan untuk halaman sukses, bersihkan state sementara
       try {
         sessionStorage.setItem('lastCheckinStudent', JSON.stringify(result.student));
         sessionStorage.setItem('lastCheckinTimestamp', result.timestamp);
-        // Simpan lokasi juga buat referensi
-        if (locationStatus) {
-          sessionStorage.setItem('lastCheckinLocation', JSON.stringify({
-            state: locationStatus.state,
-            withinRadius: locationStatus.withinRadius,
-            distanceMeters: locationStatus.distanceMeters
-          }));
-        }
       } catch (e) { /* ignore */ }
       sessionStorage.removeItem('sbCheckinStudent');
 

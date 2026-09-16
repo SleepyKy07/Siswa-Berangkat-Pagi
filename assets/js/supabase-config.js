@@ -25,9 +25,20 @@ var SCHOOL_GATE = {
 };
 */
 
+/*
+   PIN DASHBOARD ADMIN — proteksi ringan.
+   - Ganti nilainya dengan PIN pilihanmu.
+   - PIN ini dicek di browser (bukan server), jadi hanya untuk mencegah orang
+     iseng membuka dashboard — BUKAN keamanan sungguhan.
+   - Untuk keamanan nyata: pakai Supabase Auth (lihat README).
+*/
+var DASHBOARD_PIN = '1234';
+
 window.SUPABASE_CONFIG = {
   url: 'https://uccqvftgboflrpmlfawb.supabase.co',
   anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVjY3F2ZnRnYm9mbHJwbWxmYXdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0ODc3OTEsImV4cCI6MjEwNTA2Mzc5MX0.sL8N_dcGGhIitrLFT2fTM0hfhQedwRXoBWb43aBCRHQ',
+  // PIN dashboard admin (proteksi ringan)
+  dashboardPin: typeof DASHBOARD_PIN !== 'undefined' ? DASHBOARD_PIN : '1234',
   // school gate untuk validasi lokasi (opsional — null = dimatikan)
   schoolGate: typeof SCHOOL_GATE !== 'undefined' ? SCHOOL_GATE : null
 };

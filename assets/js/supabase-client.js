@@ -1,14 +1,23 @@
 /* ================================================================
    SUPABASE CLIENT
    ================================================================
-   Provides helper methods for the Siswa Berangkat Pagi system.
-   All data operations go through this module — never localStorage
-   for status/session data.
+   Helper untuk sistem Siswa Berangkat Pagi.
+   Semua operasi data lewat modul ini — status/sesi TIDAK pernah
+   disimpan di localStorage.
+
+   REVISI: identitas check-in tidak lagi memakai NIS.
+   Yang dipakai: nama (dipilih dari daftar), kelas (dari database),
+   selfie, dan timestamp server. Frontend tidak pernah menerima NIS.
+
+   Didaftarkan sebagai global `window.SBPag`, dimuat lewat <script src>
+   biasa. JANGAN menambahkan `export` di file ini — file yang memakai
+   `export` hanya bisa dimuat sebagai module dan akan gagal bila dipanggil
+   dengan <script> biasa.
    ================================================================ */
 
 'use strict';
 
-(function () {
+var SBPag = (function () {
   var cfg = window.SUPABASE_CONFIG || {};
   var supa = window.supabase;
 
@@ -16,7 +25,7 @@
   function init() {
     // Periksa apakah konfigurasi penuh
     if (!cfg.url || cfg.url.indexOf('YOUR-PROJECT') > -1) {
-      console.warn('[SB] SUPABASE CONFIG BELUM DIISIIN — paste URL + anonKey di assets/js/supabase-config.js');
+      console.warn('[SB] SUPABASE CONFIG BELUM DIISI — paste URL + anonKey di assets/js/supabase-config.js');
       return false;
     }
 
@@ -33,104 +42,129 @@
       return false; // inisialisasi async, dipanggil lagi di load
     }
 
-    window.__sb = supa.createClient(cfg.url, cfg.anonKey);
-    console.log('[SB] Supabase client initialized:', cfg.url);
+    if (!window.__sb) {
+      window.__sb = supa.createClient(cfg.url, cfg.anonKey);
+      console.log('[SB] Supabase client initialized:', cfg.url);
+    }
     return true;
   }
 
-  // --- SESSION STATUS (Core of Section A) ---
+  // --- SESSION STATUS (inti QR permanen) ---
 
   /**
-   *  Menghasilkan status session absensi dari server.
-   *  Menggunakan fungsi Postgres get_session_status() — sumber kebenaran server.
-   *  Returns: { active: boolean, manual_override: string|null,
-   *             scheduled_starts_at: string|null,
-   *             scheduled_ends_at: string|null,
-   *             server_time: string|null }
+   * Status sesi absensi dari server (fungsi Postgres get_session_status()).
+   * Returns: { active, manual_override, scheduled_starts_at,
+   *            scheduled_ends_at, server_time }
    */
   async function getSessionStatus() {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI', fallback: true };
 
     try {
-      var { data, error } = await window.__sb.rpc('get_session_status');
-      if (error) {
-        console.error('[SB] RPC error:', error);
-        // Jika RPC gagal (contoh: tabel belum dibuat), fallback ke cek manual
+      var res = await window.__sb.rpc('get_session_status');
+      if (res.error) {
+        console.error('[SB] RPC error:', res.error);
         return { error: 'RPC_FAILED', fallbackCompute: true };
       }
-      return data || { active: false };
+      return res.data || { active: false };
     } catch (err) {
       console.error('[SB] Exception:', err);
       return { error: 'EXCEPTION', fallback: true };
     }
   }
 
-  // --- STUDENT LOOKUP ---
+  /**
+   * Tanggal hari ini menurut SERVER (bukan jam device siswa).
+   * Fallback ke jam device hanya bila RPC gagal, agar dashboard tidak kosong.
+   */
+  async function getServerDate() {
+    try {
+      var status = await getSessionStatus();
+      if (status && status.server_time) {
+        // server_time format: 'YYYY-MM-DD HH24:MI:SS'
+        return String(status.server_time).slice(0, 10);
+      }
+    } catch (err) {
+      console.error('[SB] getServerDate exception:', err);
+    }
+    // Fallback: jam device
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+
+  // --- PENCARIAN SISWA (TANPA NIS) ---
 
   /**
-   * Cari data siswa berdasarkan NIS.
-   * @param {string} nis - NIS siswa
-   * @returns {Promise<Object>} { student: {id, nis, nama, kelas, jurusan} | null }
+   * Cari siswa berdasarkan NAMA (case-insensitive).
+   * Hanya mengembalikan { id, nama, kelas } — tanpa NIS.
+   * @param {string} q - kata kunci nama (boleh kosong untuk 25 pertama)
+   * @returns {Promise<Object>} { students: Array, error }
    */
-  async function findStudentByNIS(nis) {
+  async function findStudentsByName(q) {
+    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI', students: [] };
+
+    try {
+      var res = await window.__sb.rpc('find_students', { p_q: q || '' });
+      if (res.error) {
+        console.error('[SB] find_students error:', res.error);
+        return { error: 'PENCARIAN_GAGAL', detail: res.error.message, students: [] };
+      }
+      return { students: res.data || [], error: null };
+    } catch (err) {
+      console.error('[SB] findStudentsByName exception:', err);
+      return { error: 'EXCEPTION', detail: err.message, students: [] };
+    }
+  }
+
+  /**
+   * Ambil identitas publik siswa (nama + kelas) dari id internal.
+   * Dipakai untuk menampilkan kelas otomatis setelah nama dipilih.
+   * @param {number|string} id
+   * @returns {Promise<Object>} { student: {id, nama, kelas} | null, error }
+   */
+  async function getStudentPublic(id) {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
     try {
-      var { data, error } = await window.__sb
-        .from('students')
-        .select('id, nis, nama, kelas, jurusan')
-        .eq('nis', nis)
-        .single();
-
-      if (error) {
-        // NIS tidak ditemukan atau error
-        return { error: 'STUDENT_NOT_FOUND', fallback: true };
+      var res = await window.__sb.rpc('get_student_public', { p_id: id });
+      if (res.error) {
+        return { error: 'GAGAL_AMBIL_SISWA', detail: res.error.message };
       }
-      return { student: data, error: null };
+      if (!res.data) return { error: 'SISWA_TIDAK_DITEMUKAN' };
+      return { student: res.data, error: null };
     } catch (err) {
-      console.error('[SB] findStudentByNIS exception:', err);
-      return { error: 'EXCEPTION', fallback: true };
+      console.error('[SB] getStudentPublic exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
     }
   }
 
   // --- SESSION ADMIN OVERRIDES ---
 
-  /**
-   * Admin: Nonaktifkan sesi absensi (mengganti manual).
-   * @param {string} reason - Alasan nonaktifkan
-   */
+  /** Admin: nonaktifkan sesi absensi (override manual). */
   async function setSessionInactive(reason) {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
-
     try {
-      var { data, error } = await window.__sb
+      var res = await window.__sb
         .from('sessions')
         .update({ manual_override: 'NONAKTIF', override_reason: reason, updated_at: new Date() })
         .eq('id', 1);
-
-      if (error) return { error: 'GAGAL_NONAKTIFKAN', detail: error.message };
-      return { success: true, data: data };
+      if (res.error) return { error: 'GAGAL_NONAKTIFKAN', detail: res.error.message };
+      return { success: true, data: res.data };
     } catch (err) {
       console.error('[SB] setSessionInactive exception:', err);
       return { error: 'EXCEPTION', detail: err.message };
     }
   }
 
-  /**
-   * Admin: Aktifkan sesi absensi (mengganti manual).
-   * @param {string} reason - Alasan aktifkan
-   */
+  /** Admin: aktifkan sesi absensi (override manual). */
   async function setSessionActive(reason) {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
-
     try {
-      var { data, error } = await window.__sb
+      var res = await window.__sb
         .from('sessions')
         .update({ manual_override: 'AKTIF', override_reason: reason, updated_at: new Date() })
         .eq('id', 1);
-
-      if (error) return { error: 'GAGAL_AKTIFKAN', detail: error.message };
-      return { success: true, data: data };
+      if (res.error) return { error: 'GAGAL_AKTIFKAN', detail: res.error.message };
+      return { success: true, data: res.data };
     } catch (err) {
       console.error('[SB] setSessionActive exception:', err);
       return { error: 'EXCEPTION', detail: err.message };
@@ -139,22 +173,31 @@
 
   // --- SCHEDULE ---
 
-  /**
-   * Admin: Set jam mulai & jam selesai auto-schedule.
-   * @param {string} starts - format "HH:MM" (e.g., "06:00")
-   * @param {string} ends - format "HH:MM" (e.g., "07:00")
-   */
+  /** Admin: set jam mulai & selesai auto-schedule ("HH:MM"). */
   async function setSchedule(starts, ends) {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
-    // Validasi format HH:MM
+    // Jika dipanggil kosong -> hapus override manual
+    if (!starts && !ends) {
+      try {
+        var clr = await window.__sb
+          .from('sessions')
+          .update({ manual_override: null, updated_at: new Date() })
+          .eq('id', 1);
+        if (clr.error) return { error: 'GAGAL_HAPUS_OVERRIDE', detail: clr.error.message };
+        return { success: true, data: clr.data };
+      } catch (err) {
+        return { error: 'EXCEPTION', detail: err.message };
+      }
+    }
+
     var re = /^([01]\d|2[0-3]):([0-5]\d)$/;
     if (!re.test(starts) || !re.test(ends)) {
       return { error: 'INVALID_SCHEDULE_FORMAT' };
     }
 
     try {
-      var { data, error } = await window.__sb
+      var res = await window.__sb
         .from('sessions')
         .update({
           scheduled_starts_at: starts + ':00',
@@ -163,9 +206,8 @@
           updated_at: new Date()
         })
         .eq('id', 1);
-
-      if (error) return { error: 'GAGAL_SET_SCHEDULE', detail: error.message };
-      return { success: true, data: data };
+      if (res.error) return { error: 'GAGAL_SET_SCHEDULE', detail: res.error.message };
+      return { success: true, data: res.data };
     } catch (err) {
       console.error('[SB] setSchedule exception:', err);
       return { error: 'EXCEPTION', detail: err.message };
@@ -175,35 +217,33 @@
   // --- SELFIE UPLOAD ---
 
   /**
-   * Unggah foto selfie ke Supabase Storage bucket 'selfies'.
-   * Bucket bersifat privat; file hanya bisa diakses via service_role.
-   * @param {string} dataUrl - data URL base64 (data:image/jpeg;base64,...)
-   * @param {number} studentId
-   * @returns {Promise<Object>} { success, path, error }
+   * Unggah selfie ke bucket privat 'selfies'.
+   * Path: {tanggal}/{student_id}_{jam}.{ext}
+   * @param {string} dataUrl - data URL base64
+   * @param {number|string} studentId - id internal siswa
    */
   async function uploadSelfie(dataUrl, studentId) {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
-    // Validasi: harus data URL
     if (!dataUrl || dataUrl.indexOf('data:image/') !== 0) {
       return { error: 'INVALID_DATA_URL' };
     }
 
     try {
-      // Ekstrak base64 dan ekstensi file
       var parts = dataUrl.split(',');
-      var meta = parts[0];                  // data:image/jpeg;base64
+      var meta = parts[0];
       var base64 = parts[1] || '';
       var mime = meta.match(/image\/(\w+)/);
       var ext = mime ? mime[1] : 'jpg';
 
-      // Path: selfies/{date}/{student_id}_{timestamp}.jpg
-      var today = new Date();
-      var dateStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-      var timeStr = String(today.getHours()).padStart(2, '0') + String(today.getMinutes()).padStart(2, '0') + String(today.getSeconds()).padStart(2, '0');
-      var filePath = dateStr + '/' + studentId + '_' + timeStr + '.' + ext;
+      // Path memakai tanggal server bila tersedia (konsisten dengan checkin_date)
+      var dateStr = await getServerDate();
+      var now = new Date();
+      var timeStr = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
+      var rand = Math.random().toString(36).slice(2, 7);
+      var filePath = dateStr + '/' + studentId + '_' + timeStr + '_' + rand + '.' + ext;
 
-      var { data: uploadData, error: uploadError } = await window.__sb
+      var res = await window.__sb
         .storage
         .from('selfies')
         .upload(filePath, base64, {
@@ -212,17 +252,16 @@
           upsert: false
         });
 
-      if (uploadError) {
-        console.error('[SB] Upload selfie error:', uploadError);
-        // Jika bucket belum ada / permission ditolak
-        if (uploadError.message && uploadError.message.indexOf('bucket') > -1) {
+      if (res.error) {
+        console.error('[SB] Upload selfie error:', res.error);
+        if (res.error.message && res.error.message.indexOf('bucket') > -1) {
           return { error: 'BUCKET_SELFIES_BELUM_BUAT', detail: 'Buat bucket "selfies" di Supabase Storage terlebih dahulu' };
         }
-        return { error: 'GAGAL_UPLOAD_SELFIE', detail: uploadError.message };
+        return { error: 'GAGAL_UPLOAD_SELFIE', detail: res.error.message };
       }
 
-      console.log('[SB] Selfie uploaded:', uploadData.path);
-      return { success: true, path: uploadData.path || filePath };
+      console.log('[SB] Selfie uploaded:', res.data.path);
+      return { success: true, path: res.data.path || filePath };
     } catch (err) {
       console.error('[SB] uploadSelfie exception:', err);
       return { error: 'EXCEPTION', detail: err.message };
@@ -231,106 +270,64 @@
 
   // --- CHECK-IN ---
 
-   /**
-    * Catat check-in siswa.
-    * Validasi dilakukan server-side:
-    * - Sesi harus AKTIF
-    * - Siswa belum check-in hari ini
-    * - NIS valid
-    * @param {string} nis - NIS siswa
-    * @param {string} selfieDataUrl - data URL foto selfie (opsional)
-    * @param {Object} locationCtx - hasil awal collectLocationContext() dari frontend (opsional)
-    * @returns {Promise<Object>} { success, data, error }
-    */
-   async function submitCheckIn(nis, selfieDataUrl, locationCtx) {
-     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+  /**
+   * Catat check-in siswa. Validasi & timestamp dilakukan SERVER
+   * lewat RPC submit_checkin().
+   * @param {number|string} studentId - id internal siswa (bukan NIS)
+   * @param {string} selfieDataUrl - data URL foto selfie (opsional)
+   * @returns {Promise<Object>} { success, nama, kelas, timestamp, selfiePath } | { error, detail }
+   */
+  async function submitCheckIn(studentId, selfieDataUrl) {
+    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
-     // Langkah 1: Pastikan status AKTIF (server-side)
-     var statusResult = await getSessionStatus();
-     if (statusResult.error) {
-       return { error: 'TIDAK_BISA_CHECKIN_STATUS_ERROR', detail: statusResult.error };
-     }
-     if (!statusResult.active) {
-       return { error: 'ABSENSI_TIDAK_AKTIF', detail: statusResult.manual_override || 'Tidak dalam jadwal' };
-     }
+    // Langkah 1: pastikan sesi AKTIF (server-side)
+    var statusResult = await getSessionStatus();
+    if (statusResult.error) {
+      return { error: 'TIDAK_BISA_CHECKIN_STATUS_ERROR', detail: statusResult.error };
+    }
+    if (!statusResult.active) {
+      return { error: 'ABSENSI_TIDAK_AKTIF', detail: statusResult.manual_override || 'Tidak dalam jadwal' };
+    }
 
-     // Langkah 2: Cari siswa
-     var studentResult = await findStudentByNIS(nis);
-     if (studentResult.error) {
-       return { error: 'SISWA_TIDAK_DITEMUKAN', detail: studentResult.error };
-     }
-     var student = studentResult.student;
+    // Langkah 2: validasi siswa (nama + kelas dari server)
+    var studentResult = await getStudentPublic(studentId);
+    if (studentResult.error) {
+      return { error: 'SISWA_TIDAK_DITEMUKAN', detail: studentResult.error };
+    }
+    var student = studentResult.student;
 
-     // --- ANTI-ASRAMA: validasi lokasi ---
-     // Jika frontend belum mengumpulkan lokasi, kumpulkan di sini.
-     // Jika location unavailable/ditolak, tetap lanjutkan check-in dengan catatan.
-     if (!locationCtx) {
-       locationCtx = await collectLocationContext();
-     }
-
-
-    // Langkah 3: Upload selfie ke storage (jika ada)
+    // Langkah 3: upload selfie (jika ada). Kegagalan upload tidak memblokir check-in.
     var selfiePath = null;
     if (selfieDataUrl) {
       var uploadResult = await uploadSelfie(selfieDataUrl, student.id);
       if (uploadResult.error) {
-        // Jika bucket belum ada, lanjutkan tetapi catat error ke frontend
         console.warn('[SB] Selfie upload failed:', uploadResult.error);
-        // Don't block check-in just because selfie failed to upload;
-        // record the check-in anyway, note the issue
       } else {
         selfiePath = uploadResult.path;
       }
     }
 
-    // Langkah 4: Cek apakah sudah check-in hari ini (unique constraint di DB)
-    // Menggunakan server date melalui SQL
-    var today = new Date();
-    var todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-
+    // Langkah 4: simpan check-in via RPC (tanggal & jam SERVER, anti-duplikat)
     try {
-      // Cek sudah ada check-in hari ini
-      var { data: existing, error: checkErr } = await window.__sb
-        .from('check_ins')
-        .select('id')
-        .eq('student_id', student.id)
-        .eq('checkin_date', todayStr)
-        .maybeSingle();
+      var res = await window.__sb.rpc('submit_checkin', {
+        p_student_id: student.id,
+        p_selfie_path: selfiePath
+      });
 
-      if (checkErr) {
-        return { error: 'GAGAL_CEK_EXISTING_CHECKIN', detail: checkErr.message };
+      if (res.error) return { error: 'GAGAL_SIMPAN_CHECKIN', detail: res.error.message };
+
+      var data = res.data || {};
+      if (data.error) {
+        // Error logis dari server: ABSENSI_TIDAK_AKTIF / SUDAH_CHECKIN_HARI_INI / SISWA_TIDAK_DITEMUKAN
+        return { error: data.error, detail: data.error };
       }
-
-      if (existing) {
-        return { error: 'SUDAH_CHECKIN_HARI_INI', detail: 'Anda sudah melakukan absensi hari ini.' };
-      }
-
-      // Langkah 5: Simpan check-in (server timestamp)
-      var { data, error } = await window.__sb
-        .from('check_ins')
-        .insert({
-          student_id: student.id,
-          checkin_date: todayStr,
-          selfie_path: selfiePath || null,
-          // Lapisan anti-asrama (opsional)
-          location_lat: locationCtx.lat || null,
-          location_lng: locationCtx.lng || null,
-          location_accuracy: locationCtx.accuracy || null,
-          location_within_radius: locationCtx.withinRadius || null,
-          location_state: locationCtx.state || null,
-          location_reason: locationCtx.reason || null
-        })
-        .select()
-        .single();
-
-      if (error) return { error: 'GAGAL_SIMPAN_CHECKIN', detail: error.message };
 
       return {
         success: true,
-        student: student,
-        timestamp: data.checked_in_at,
-        selfiePath: selfiePath,
-        checkinId: data.id
+        student: { id: student.id, nama: student.nama, kelas: student.kelas },
+        timestamp: data.timestamp,
+        selfiePath: data.selfie_path || selfiePath,
+        checkinId: data.checkin_id
       };
     } catch (err) {
       console.error('[SB] submitCheckIn exception:', err);
@@ -338,131 +335,37 @@
     }
   }
 
-  // --- ANTI-ASRAMA: LOCATION VALIDATION (opsional) ---
+  // --- TODAY CHECK-INS (dashboard admin) ---
 
   /**
-   * Ambil lokasi device (geolocation browser) dan validasi terhadap gerbang.
-   * Hasilnya nanti disimpan bersama check-in sebagai lapisan validasi.
-   * - Jika location ditolak → tidak crash, tampilkan status jelas.
-   * @returns {Promise<Object>} {
-   *   state: 'OK' | 'DENIED' | 'SKIPPED' | 'UNSUPPORTED',
-   *   lat, lng, accuracy, distanceMeters, withinRadius, reason
-   * }
-   */
-  async function collectLocationContext() {
-    var gate = (cfg.schoolGate) || null;
-
-    // Jika gerbang tidak dikonfigurasi → skip lokasi (soft), bukan block.
-    if (!gate || !gate.latitude || !gate.longitude) {
-      return {
-        state: 'SKIPPED',
-        reason: 'SCHOOL_GATE_NOT_CONFIGURED',
-        withinRadius: null,
-        distanceMeters: null
-      };
-    }
-
-    // Coba ambil lokasi browser
-    var loc;
-    if (!navigator.geolocation) {
-      return { state: 'UNSUPPORTED', reason: 'GEOLOCATION_UNSUPPORTED', withinRadius: null };
-    }
-
-    try {
-      loc = await new Promise(function (resolve) {
-        navigator.geolocation.getCurrentPosition(
-          function (pos) {
-            resolve({
-              ok: true,
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-              accuracy: pos.coords.accuracy
-            });
-          },
-          function (err) {
-            resolve({ ok: false, code: err.code || 'UNKNOWN' });
-          },
-          { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-        );
-      });
-    } catch (e) {
-      return { state: 'DENIED', reason: 'GEOLOCATION_ERROR', withinRadius: null };
-    }
-
-    if (!loc.ok) {
-      // Permission ditolak/error → tidak crash; tandai state DENIED
-      var reasonMap = {
-        1: 'PERMISSION_DENIED',
-        2: 'POSITION_UNAVAILABLE',
-        3: 'TIMEOUT'
-      };
-      return {
-        state: 'DENIED',
-        reason: reasonMap[loc.code] || 'LOCATION_FAILED',
-        withinRadius: null,
-        distanceMeters: null
-      };
-    }
-
-    // Hitung jarak dari gerbang (haversine)
-    var dist = haversineMeters(loc.lat, loc.lng, gate.latitude, gate.longitude);
-    var radiusM = gate.radiusMeters || 30;
-
-    return {
-      state: 'OK',
-      reason: 'WITHIN_ACCURACY',
-      lat: loc.lat,
-      lng: loc.lng,
-      accuracy: loc.accuracy,
-      distanceMeters: Math.round(dist),
-      withinRadius: dist <= radiusM,
-      radiusMeters: radiusM
-    };
-  }
-
-  // Haversine distance (meter)
-  function haversineMeters(lat1, lng1, lat2, lng2) {
-    function toRad(x) { return x * Math.PI / 180; }
-    var R = 6371000;
-    var dLat = toRad(lat2 - lat1);
-    var dLon = toRad(lng2 - lng1);
-    var a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  }
-
-  // --- TODAY CHECK-INS ---
-
-  /**
-   * Daftar semua check-in hari ini untuk dashboard admin.
-   * @returns {Promise<Array>} Array { id, student_nama, student_nis, waktu, selfie }
+   * Daftar check-in hari ini (tanggal server), urut dari paling pagi.
+   * Mengembalikan baris check_ins + relasi students(nama, kelas).
+   * TANPA NIS.
+   * @returns {Promise<Array>}
    */
   async function getTodayCheckIns() {
     if (!init()) return [];
 
-    var today = new Date();
-    var todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    var todayStr = await getServerDate();
 
     try {
-      var { data, error } = await window.__sb
+      var res = await window.__sb
         .from('check_ins')
         .select(`
           id,
           student_id,
           checked_in_at,
-          students!inner(nama, nis, kelas, jurusan)
+          selfie_path,
+          students!inner(nama, kelas)
         `)
         .eq('checkin_date', todayStr)
         .order('checked_in_at', { ascending: true });
 
-      if (error) {
-        console.error('[SB] getTodayCheckIns error:', error);
+      if (res.error) {
+        console.error('[SB] getTodayCheckIns error:', res.error);
         return [];
       }
-      return data || [];
+      return res.data || [];
     } catch (err) {
       console.error('[SB] getTodayCheckIns exception:', err);
       return [];
@@ -472,41 +375,85 @@
   // --- EARLIEST CHECK-IN (Siswa paling pagi) ---
 
   /**
-   * Dapatkan timestamp check-in terawal hari ini (siswa paling pagi).
-   * @returns {Promise<Object>} { student, timestamp } atau null kalau belum ada
+   * Check-in terawal hari ini = "Siswa Paling Pagi".
+   * Semua check-in tetap tersimpan; ini hanya menandai yang terawal.
+   * @returns {Promise<Object>} { student:{nama,kelas}, timestamp } | null
    */
   async function getEarliestCheckInToday() {
     var checkIns = await getTodayCheckIns();
     if (!checkIns || checkIns.length === 0) return null;
 
-    // Urut berdasarkan checked_in_at ascending (terlama pertama)
     checkIns.sort(function (a, b) { return new Date(a.checked_in_at) - new Date(b.checked_in_at); });
     var earliest = checkIns[0];
 
     return {
       student: {
-        id: earliest.student.id,
-        nis: earliest.student.nis,
-        nama: earliest.student.nama,
-        kelas: earliest.student.kelas,
-        jurusan: earliest.student.jurusan
+        id: earliest.student_id,
+        nama: earliest.students ? earliest.students.nama : 'Siswa',
+        kelas: earliest.students ? earliest.students.kelas : ''
       },
       timestamp: earliest.checked_in_at
     };
   }
 
-  // Make public
-  window.SBPag = window.SBPag || {};
-  window.SBPag.init = init;
-  window.SBPag.getSessionStatus = getSessionStatus;
-  window.SBPag.findStudentByNIS = findStudentByNIS;
-  window.SBPag.setSessionInactive = setSessionInactive;
-  window.SBPag.setSessionActive = setSessionActive;
-  window.SBPag.setSchedule = setSchedule;
-  window.SBPag.uploadSelfie = uploadSelfie;
-  window.SBPag.submitCheckIn = submitCheckIn;
-  window.SBPag.getTodayCheckIns = getTodayCheckIns;
-  window.SBPag.getEarliestCheckInToday = getEarliestCheckInToday;
-  window.SBPag.collectLocationContext = collectLocationContext;
+  // --- SELFIE UNTUK ADMIN ---
 
+  /**
+   * Buat signed URL sementara untuk melihat selfie (bucket tetap privat).
+   * Memakai Storage API (createSignedUrl), BUKAN fungsi SQL.
+   * Syarat: ada policy SELECT pada storage.objects untuk bucket 'selfies'
+   * (lihat bagian 6 di supabase/setup.sql).
+   * @param {string} path - selfie_path
+   * @returns {Promise<Object>} { url } | { error, detail }
+   */
+  async function getSelfieUrl(path) {
+    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+
+    if (!path || String(path).trim() === '') {
+      return { error: 'PATH_KOSONG' };
+    }
+
+    try {
+      var res = await window.__sb
+        .storage
+        .from('selfies')
+        .createSignedUrl(path, 60);
+
+      if (res.error) {
+        console.error('[SB] createSignedUrl error:', res.error);
+        return { error: 'GAGAL_BUAT_URL', detail: res.error.message };
+      }
+      if (!res.data || !res.data.signedUrl) {
+        return { error: 'GAGAL_BUAT_URL', detail: 'signedUrl kosong' };
+      }
+      return { url: res.data.signedUrl };
+    } catch (err) {
+      console.error('[SB] getSelfieUrl exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  // --- EXPORTS ---
+
+  var api = {
+    init: init,
+    getSessionStatus: getSessionStatus,
+    getServerDate: getServerDate,
+    findStudentsByName: findStudentsByName,
+    getStudentPublic: getStudentPublic,
+    setSessionInactive: setSessionInactive,
+    setSessionActive: setSessionActive,
+    setSchedule: setSchedule,
+    uploadSelfie: uploadSelfie,
+    submitCheckIn: submitCheckIn,
+    getTodayCheckIns: getTodayCheckIns,
+    getEarliestCheckInToday: getEarliestCheckInToday,
+    getSelfieUrl: getSelfieUrl
+  };
+
+  // Daftarkan sebagai global (untuk <script> biasa)
+  window.SBPag = window.SBPag || {};
+  Object.keys(api).forEach(function (k) { window.SBPag[k] = api[k]; });
+
+  return api;
 })();

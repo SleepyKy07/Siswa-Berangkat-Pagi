@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Identifikasi Siswa &middot; Check-in</title>
+  <title>Pilih Nama &middot; Check-in</title>
   <meta name="theme-color" content="#0f766e">
   <link rel="stylesheet" href="../assets/css/portal.css">
   <style>
@@ -16,14 +16,28 @@
     .card{background:var(--card);border:1px solid rgba(216,235,232,.8);border-radius:var(--radius);padding:22px;box-shadow:0 8px 24px rgba(15,118,110,.07);margin-bottom:16px}
     h2{font-size:1.1rem;color:var(--primary-dark);margin-bottom:6px}
     .sub{font-size:.82rem;color:var(--muted);margin-bottom:16px}
-    label{display:grid;gap:6px;font-size:.77rem;font-weight:700;color:var(--muted);margin-bottom:14px}
-    input{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:12px;font:inherit;color:var(--text);background:#fbfffe;min-height:45px}
-    input:focus{outline:0;border-color:var(--primary);box-shadow:0 0 0 4px rgba(15,118,110,.12)}
+    label{display:grid;gap:6px;font-size:.77rem;font-weight:700;color:var(--muted);margin-bottom:12px}
+    input[type=text]{width:100%;border:1.5px solid var(--line);border-radius:12px;padding:12px;font:inherit;color:var(--text);background:#fbfffe;min-height:45px}
+    input[type=text]:focus{outline:0;border-color:var(--primary);box-shadow:0 0 0 4px rgba(15,118,110,.12)}
     .btn{border:0;border-radius:11px;padding:12px 16px;min-height:42px;font:700 .82rem inherit;cursor:pointer;transition:.18s;width:100%;background:var(--primary);color:#fff}
     .btn:hover{background:var(--primary-dark)}
+    .btn.soft{background:#e6f6f3;color:var(--primary-dark)}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
     .notice{padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:.82rem}
-    .info-box{padding:12px 14px;border-radius:12px;background:#f0fdfa;border:1px solid #c9eeea;font-size:.85rem;color:var(--primary-dark);margin-top:14px}
-    .privacy{padding:12px 14px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:.78rem;line-height:1.5}
+    .privacy{padding:12px 14px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:.78rem;line-height:1.5;margin-top:14px}
+    .list{margin-top:10px;display:grid;gap:8px;max-height:290px;overflow:auto}
+    .item{display:flex;justify-content:space-between;align-items:center;gap:10px;border:1.5px solid var(--line);background:#fbfffe;border-radius:12px;padding:12px 14px;cursor:pointer;transition:.15s;text-align:left;width:100%;font:inherit}
+    .item:hover{border-color:var(--primary);background:#f0fdfa}
+    .item .nm{font-weight:700;color:var(--text)}
+    .item .kl{font-size:.76rem;color:var(--muted);white-space:nowrap}
+    .item.selected{border-color:var(--primary);background:#e6f6f3}
+    .hint{font-size:.76rem;color:var(--muted);margin-top:8px}
+    .confirm{background:#f0fdfa;border:1px solid #c9eeea;border-radius:12px;padding:14px;margin-top:12px}
+    .confirm .row{display:flex;justify-content:space-between;padding:6px 0;font-size:.85rem;border-bottom:1px dashed var(--line)}
+    .confirm .row:last-child{border-bottom:0}
+    .confirm .lbl{color:var(--muted)}
+    .confirm .val{font-weight:700;color:var(--primary-dark);text-align:right}
+    .loading{text-align:center;padding:16px;color:var(--muted);font-size:.83rem}
   </style>
 </head>
 <body>
@@ -32,19 +46,28 @@
 
 <div class="max-w">
   <div class="card">
-    <h2>&#128100; Identifikasi Siswa</h2>
-    <p class="sub">Masukkan NIS atau pilih dari daftar siswa yang sudah terdaftar.</p>
+    <h2>&#128100; Pilih Nama Siswa</h2>
+    <p class="sub">Ketik namamu, lalu pilih dari daftar. Kelas akan terisi otomatis.</p>
 
-    <form id="loginForm">
-      <label>NIS / Nomer Induk Siswa
-        <input type="text" id="nisInput" placeholder="Contoh: 2026001" autocomplete="off" inputmode="numeric">
-      </label>
-      <button type="submit" class="btn">&#10148; Lanjut ke Selfie</button>
-    </form>
+    <label>&#128269; Cari nama siswa
+      <input type="text" id="searchInput" placeholder="Contoh: Eky" autocomplete="off">
+    </label>
 
-    <div id="resultBox" style="display:none;"></div>
+    <div id="loadingBox" class="loading" style="display:none;">Mencari siswa&#8230;</div>
 
-    <div class="privacy">&#128274; <strong>Privasi:</strong> data siswa hanya digunakan untuk proses check-in. Identitas tidak akan ditampilkan ke publik.</div>
+    <div id="listBox" class="list" style="display:none;"></div>
+    <div id="emptyBox" class="notice" style="display:none;">Nama tidak ditemukan. Pastikan namamu terdaftar &amp; aktif, atau hubungi petugas OSIS.</div>
+
+    <div id="confirmBox" class="confirm" style="display:none;">
+      <div class="row"><span class="lbl">Nama</span><span class="val" id="cNama"></span></div>
+      <div class="row"><span class="lbl">Kelas</span><span class="val" id="cKelas"></span></div>
+    </div>
+
+    <button type="button" class="btn" id="btnLanjut" style="margin-top:14px;display:none;">&#128247; Lanjut Ambil Selfie</button>
+
+    <a href="./index.html" class="btn soft" style="display:block;text-align:center;text-decoration:none;margin-top:10px;">&#8637; Ganti / Cek Status Sesi</a>
+
+    <div class="privacy">&#128274; <strong>Privasi:</strong> identitas yang dipakai hanya <strong>nama</strong> dan <strong>kelas</strong>. NIS dan data pribadi lain tidak diminta dan tidak disimpan pada form ini.</div>
   </div>
 </div>
 
@@ -55,8 +78,89 @@
 (function () {
   function $(s) { return document.querySelector(s); }
 
+  var searchInput, listBox, emptyBox, loadingBox, confirmBox, btnLanjut;
+  var selected = null;
+  var debounceTimer = null;
+
+  function escapeHtml(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function setSelected(stu) {
+    selected = stu;
+    $('#cNama').textContent = stu.nama;
+    $('#cKelas').textContent = stu.kelas || '-';
+    confirmBox.style.display = 'block';
+    btnLanjut.style.display = 'block';
+    // Tandai item yang dipilih
+    Array.prototype.forEach.call(document.querySelectorAll('.item'), function (el) {
+      el.classList.toggle('selected', String(el.getAttribute('data-id')) === String(stu.id));
+    });
+  }
+
+  function renderList(students) {
+    if (!students || students.length === 0) {
+      listBox.style.display = 'none';
+      listBox.innerHTML = '';
+      emptyBox.style.display = 'block';
+      return;
+    }
+    emptyBox.style.display = 'none';
+    listBox.style.display = 'grid';
+
+    // Nama yang muncul lebih dari sekali ditandai, agar siswa memilih yang benar
+    var counts = {};
+    students.forEach(function (s) { var k = (s.nama || '').toLowerCase(); counts[k] = (counts[k] || 0) + 1; });
+
+    listBox.innerHTML = students.map(function (s) {
+      var dup = counts[(s.nama || '').toLowerCase()] > 1;
+      return '<button type="button" class="item" data-id="' + s.id + '">' +
+        '<span class="nm">' + escapeHtml(s.nama) + (dup ? ' <span style="color:#92400e;font-weight:800;">(nama sama)</span>' : '') + '</span>' +
+        '<span class="kl">' + escapeHtml(s.kelas || '-') + '</span>' +
+        '</button>';
+    }).join('');
+
+    Array.prototype.forEach.call(document.querySelectorAll('.item'), function (el) {
+      el.addEventListener('click', function () {
+        var id = el.getAttribute('data-id');
+        var found = students.filter(function (s) { return String(s.id) === String(id); })[0];
+        if (found) setSelected({ id: found.id, nama: found.nama, kelas: found.kelas });
+      });
+    });
+  }
+
+  async function doSearch() {
+    var q = searchInput.value.trim();
+    loadingBox.style.display = 'block';
+    emptyBox.style.display = 'none';
+    listBox.style.display = 'none';
+
+    var result = await window.SBPag.findStudentsByName(q);
+    loadingBox.style.display = 'none';
+
+    if (result.error) {
+      emptyBox.textContent = 'Gagal mencari nama. Pastikan backend Supabase sudah di-setup (lihat supabase/setup.sql).';
+      emptyBox.style.display = 'block';
+      return;
+    }
+    renderList(result.students);
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
-    if (!window.SBPag) return;
+    if (!window.SBPag) {
+      alert('Klien backend tidak tersedia. Cek assets/js/supabase-client.js');
+      return;
+    }
+    window.SBPag.init();
+
+    searchInput = $('#searchInput');
+    listBox = $('#listBox');
+    emptyBox = $('#emptyBox');
+    loadingBox = $('#loadingBox');
+    confirmBox = $('#confirmBox');
+    btnLanjut = $('#btnLanjut');
 
     // Cegah akses langsung via URL kalau sesi sedang nonaktif (cek server)
     window.SBPag.getSessionStatus().then(function (status) {
@@ -65,38 +169,27 @@
       }
     });
 
-    $('#loginForm').addEventListener('submit', async function (e) {
-      e.preventDefault();
-      var nis = $('#nisInput').value.trim();
-      var resultBox = $('#resultBox');
-      if (!nis) return;
+    // Muat 25 nama pertama saat halaman dibuka
+    doSearch();
 
-      var result = await window.SBPag.findStudentByNIS(nis);
-      if (result.error) {
-        resultBox.innerHTML = '<div class="notice">&#9888; NIS tidak ditemukan. Silakan hubungi petugas petugas OSIS.</div>';
-        resultBox.style.display = 'block';
-        return;
-      }
+    // Pencarian dengan debounce
+    searchInput.addEventListener('input', function () {
+      selected = null;
+      confirmBox.style.display = 'none';
+      btnLanjut.style.display = 'none';
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(doSearch, 300);
+    });
 
-      var s = result.student;
-      resultBox.innerHTML = '<div class="info-box">Siswa terkonfirmasi: <strong>' + escapeHtml(s.nama) + '</strong> (' + escapeHtml(s.kelas || '-') + ')</div>';
-      resultBox.style.display = 'block';
-
+    btnLanjut.addEventListener('click', function () {
+      if (!selected) return;
       // Simpan identitas sementara untuk sesi ini (sessionStorage — bukan pembawa status)
       try {
-        sessionStorage.setItem('sbCheckinStudent', JSON.stringify(s));
+        sessionStorage.setItem('sbCheckinStudent', JSON.stringify(selected));
       } catch (err) { /* ignore */ }
-
-      // Lanjut ke proses selfie (bagian selanjutnya)
-      setTimeout(function () { window.location.href = './selfie.html'; }, 900);
+      window.location.href = './selfie.html';
     });
   });
-
-  function escapeHtml(v) {
-    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
-    });
-  }
 })();
 </script>
 </body>
