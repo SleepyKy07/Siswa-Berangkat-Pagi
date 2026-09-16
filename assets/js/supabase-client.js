@@ -2,7 +2,7 @@
    SUPABASE CLIENT
    ================================================================
    Helper untuk sistem Siswa Berangkat Pagi.
-   Semua operasi data lewat modul ini — status/sesi TIDAK pernah
+   Semua operasi data lewat modul ini â€” status/sesi TIDAK pernah
    disimpan di localStorage.
 
    REVISI: identitas check-in tidak lagi memakai NIS.
@@ -10,7 +10,7 @@
    selfie, dan timestamp server. Frontend tidak pernah menerima NIS.
 
    Didaftarkan sebagai global `window.SBPag`, dimuat lewat <script src>
-   biasa. JANGAN menambahkan `export` di file ini — file yang memakai
+   biasa. JANGAN menambahkan `export` di file ini â€” file yang memakai
    `export` hanya bisa dimuat sebagai module dan akan gagal bila dipanggil
    dengan <script> biasa.
    ================================================================ */
@@ -21,32 +21,79 @@ var SBPag = (function () {
   var cfg = window.SUPABASE_CONFIG || {};
   var supa = window.supabase;
 
-  // Initialize Supabase client
-  function init() {
-    // Periksa apakah konfigurasi penuh
-    if (!cfg.url || cfg.url.indexOf('YOUR-PROJECT') > -1) {
-      console.warn('[SB] SUPABASE CONFIG BELUM DIISI — paste URL + anonKey di assets/js/supabase-config.js');
-      return false;
-    }
+  // Promise yang selesai setelah library supabase-js tersedia & client dibuat.
+  // Ini mencegah kegagalan "Gagal memeriksa status" pada percobaan pertama,
+  // karena library dimuat dari CDN secara asinkron.
+  var readyPromise = null;
 
-    if (!supa) {
-      // Coba ambil supabase-js dari CDN jika belum ada
+  // Muat library supabase-js dari CDN bila halaman belum menyertakannya.
+  function loadLibrary() {
+    return new Promise(function (resolve, reject) {
+      if (window.supabase) { resolve(); return; }
+
+      // Sudah ada tag yang sedang dimuat? Tunggu.
+      var existing = document.querySelector('script[data-sb-lib]');
+      if (existing) {
+        existing.addEventListener('load', function () { resolve(); });
+        existing.addEventListener('error', function () { reject(new Error('CDN supabase-js gagal dimuat')); });
+        return;
+      }
+
       var s = document.createElement('script');
       s.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
-      s.async = false;
-      s.onload = function () {
-        supa = window.supabase;
-        if (init()) console.log('[SB] Supabase client initialized');
-      };
+      s.async = true;
+      s.setAttribute('data-sb-lib', '1');
+      s.onload = function () { resolve(); };
+      s.onerror = function () { reject(new Error('CDN supabase-js gagal dimuat')); };
       document.head.appendChild(s);
-      return false; // inisialisasi async, dipanggil lagi di load
-    }
+    });
+  }
 
+  // Siapkan client (idempotent).
+  function createClientOnce() {
+    if (!cfg.url || cfg.url.indexOf('YOUR-PROJECT') > -1) return false;
+    if (!window.supabase) return false;
     if (!window.__sb) {
-      window.__sb = supa.createClient(cfg.url, cfg.anonKey);
+      window.__sb = window.supabase.createClient(cfg.url, cfg.anonKey);
       console.log('[SB] Supabase client initialized:', cfg.url);
     }
+    supa = window.supabase;
     return true;
+  }
+
+  /**
+   * Pastikan client siap. Mengembalikan Promise<boolean>.
+   * Selalu bisa di-await â€” tidak lagi "gagal sekali lalu berhasil saat retry".
+   */
+  function ready() {
+    if (!readyPromise) {
+      if (!cfg.url || cfg.url.indexOf('YOUR-PROJECT') > -1) {
+        console.warn('[SB] SUPABASE CONFIG BELUM DIISI â€” paste URL + anonKey di assets/js/supabase-config.js');
+        readyPromise = Promise.resolve(false);
+      } else if (window.supabase) {
+        readyPromise = Promise.resolve(createClientOnce());
+      } else {
+        readyPromise = loadLibrary()
+          .then(function () { return createClientOnce(); })
+          .catch(function (err) {
+            console.error('[SB] Gagal memuat library supabase-js:', err);
+            // Reset agar percobaan berikutnya bisa memuat ulang
+            readyPromise = null;
+            return false;
+          });
+      }
+    }
+    return readyPromise;
+  }
+
+  // Versi sinkron (untuk kompatibilitas): coba siapkan tanpa menunggu.
+  function init() {
+    if (readyPromise) return !!window.__sb;
+    if (!cfg.url || cfg.url.indexOf('YOUR-PROJECT') > -1) return false;
+    if (window.supabase) return createClientOnce();
+    // Mulai pemuatan di latar, hasil dipakai oleh ready()
+    ready();
+    return false;
   }
 
   // --- SESSION STATUS (inti QR permanen) ---
@@ -57,7 +104,7 @@ var SBPag = (function () {
    *            scheduled_ends_at, server_time }
    */
   async function getSessionStatus() {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI', fallback: true };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI', fallback: true };
 
     try {
       var res = await window.__sb.rpc('get_session_status');
@@ -99,7 +146,7 @@ var SBPag = (function () {
    * @returns {Promise<Object>} { items: Array, error }
    */
   async function listPendingStudents(status) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI', items: [] };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI', items: [] };
     try {
       var res = await window.__sb.rpc('list_pending_students', { p_status: status || 'pending' });
       if (res.error) {
@@ -118,7 +165,7 @@ var SBPag = (function () {
    * @param {number|string} id - id baris pending_students
    */
   async function approvePendingStudent(id) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
     try {
       var res = await window.__sb.rpc('approve_pending_student', { p_id: id });
       if (res.error) return { error: 'GAGAL_SETUJUI', detail: res.error.message };
@@ -135,7 +182,7 @@ var SBPag = (function () {
    * @param {number|string} id
    */
   async function rejectPendingStudent(id) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
     try {
       var res = await window.__sb.rpc('reject_pending_student', { p_id: id });
       if (res.error) return { error: 'GAGAL_ABAIKAN', detail: res.error.message };
@@ -151,7 +198,7 @@ var SBPag = (function () {
 
   /** Admin: nonaktifkan sesi absensi (override manual). */
   async function setSessionInactive(reason) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
     try {
       var res = await window.__sb
         .from('sessions')
@@ -167,7 +214,7 @@ var SBPag = (function () {
 
   /** Admin: aktifkan sesi absensi (override manual). */
   async function setSessionActive(reason) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
     try {
       var res = await window.__sb
         .from('sessions')
@@ -185,7 +232,7 @@ var SBPag = (function () {
 
   /** Admin: set jam mulai & selesai auto-schedule ("HH:MM"). */
   async function setSchedule(starts, ends) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
     // Jika dipanggil kosong -> hapus override manual
     if (!starts && !ends) {
@@ -246,7 +293,7 @@ var SBPag = (function () {
    * @param {number|string} studentId - id internal siswa
    */
   async function uploadSelfie(dataUrl, ownerTag) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
     if (!dataUrl || dataUrl.indexOf('data:image/') !== 0) {
       return { error: 'INVALID_DATA_URL' };
@@ -308,7 +355,7 @@ var SBPag = (function () {
    * @returns {Promise<Object>} { success, nama, kelas, timestamp, selfiePath } | { error, detail }
    */
   async function submitCheckInManual(nama, kelas, selfieDataUrl) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
     var n = String(nama || '').trim();
     var k = String(kelas || '').trim();
@@ -384,7 +431,7 @@ var SBPag = (function () {
    * @returns {Promise<Array>} array { id, nama, kelas, checked_in_at, selfie_path, is_pending }
    */
   async function getTodayCheckIns() {
-    if (!init()) return [];
+    if (!(await ready())) return [];
 
     try {
       var res = await window.__sb.rpc('list_today_checkins');
@@ -441,7 +488,7 @@ var SBPag = (function () {
    * @returns {Promise<Object>} { url } | { error, detail }
    */
   async function getSelfieUrl(path, expires) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
     if (!path || String(path).trim() === '') {
       return { error: 'PATH_KOSONG' };
@@ -495,7 +542,7 @@ var SBPag = (function () {
    * @returns {Promise<Object>} { blobUrl } | { error, detail }
    */
   async function getSelfieBlob(path, expires) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
     if (!path || String(path).trim() === '') return { error: 'PATH_KOSONG' };
 
     try {
@@ -558,7 +605,7 @@ var SBPag = (function () {
    * @param {string} [beforeDate] - 'YYYY-MM-DD' (wajib bila mode='before')
    */
   async function countHistoryToDelete(mode, beforeDate) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
     try {
       var res = await window.__sb.rpc('count_history_to_delete', {
         p_mode: mode,
@@ -585,7 +632,7 @@ var SBPag = (function () {
    * @returns {Promise<Object>} { success, checkinsDeleted, pendingDeleted, selfiesDeleted, selfieErrors }
    */
   async function deleteHistory(mode, beforeDate) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
     if (mode === 'before' && !beforeDate) {
       return { error: 'TANGGAL_WAJIB_DIISI' };
@@ -652,6 +699,7 @@ var SBPag = (function () {
 
   var api = {
     init: init,
+    ready: ready,
     getSessionStatus: getSessionStatus,
     getServerDate: getServerDate,
     listPendingStudents: listPendingStudents,

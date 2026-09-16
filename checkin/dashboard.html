@@ -67,7 +67,7 @@
       </div>
     </div>
     <p class="small">Data diperbarui otomatis dari server. Waktu memakai jam server, bukan jam device siswa.
-      <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:99px;background:#e6f6f3;color:var(--primary-dark);font-weight:700;font-size:.7rem;">versi 9</span>
+      <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:99px;background:#e6f6f3;color:var(--primary-dark);font-weight:700;font-size:.7rem;">versi 10</span>
     </p>
   </div>
 
@@ -208,8 +208,10 @@
   </div>
 </div>
 
-<script src="../assets/js/supabase-config.js?v=9"></script>
-<script src="../assets/js/supabase-client.js?v=9"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script src="../assets/js/supabase-config.js?v=10"></script>
+<script src="../assets/js/supabase-client.js?v=10"></script>
 <script>
 'use strict';
 (function () {
@@ -486,7 +488,7 @@
         $('#selfieError').style.display = 'block';
         $('#selfieError').textContent =
           'Gagal memuat selfie: ' + (res.detail || res.error || 'tidak diketahui') +
-          ' ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â pastikan policy storage "Selfie sign selfies" sudah dijalankan (supabase/fix-storage.sql).';
+          ' ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Â ÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Â¦Ãƒâ€šÃ‚Â¡ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™Ãƒâ€ Ã¢â‚¬â„¢ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã‚Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â pastikan policy storage "Selfie sign selfies" sudah dijalankan (supabase/fix-storage.sql).';
         return;
       }
 
@@ -571,7 +573,7 @@
       );
       if (konfirmasi === null) return;
       if (konfirmasi.trim().toUpperCase() !== 'HAPUS') {
-        historyInfo('Dibatalkan Ã¢â‚¬â€ kata konfirmasi tidak cocok.', true);
+        historyInfo('Dibatalkan ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â kata konfirmasi tidak cocok.', true);
         return;
       }
 

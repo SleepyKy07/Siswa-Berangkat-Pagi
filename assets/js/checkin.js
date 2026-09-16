@@ -55,12 +55,19 @@
     $('#errorBox').style.display = 'none';
 
     try {
+      // Tunggu sampai library & client siap (menghindari gagal pada percobaan pertama)
+      var siap = await window.SBPag.ready();
+
       // Cek status session dari server (backend = sumber kebenaran)
       var result = await window.SBPag.getSessionStatus();
 
       if (result.error && result.fallback) {
-        // Backend belum dikonfigurasi — pesan jelas, bukan crash
-        showError('Backend belum dikonfigurasi. Silakan lengkapi URL + anon key di supabase-config.js lalu jalankan supabase/setup.sql di dashboard Supabase.');
+        // Konfigurasi belum diisi, atau koneksi backend gagal
+        if (!siap) {
+          showError('Backend belum dikonfigurasi. Silakan lengkapi URL + anon key di supabase-config.js lalu jalankan supabase/setup.sql di dashboard Supabase.');
+        } else {
+          showError('Gagal menghubungi server. Periksa koneksi internet lalu coba lagi.');
+        }
         return;
       }
 
