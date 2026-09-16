@@ -217,6 +217,19 @@ var SBPag = (function () {
   // --- SELFIE UPLOAD ---
 
   /**
+   * Ubah string base64 menjadi Uint8Array (byte biner asli).
+   * Dipakai agar file yang diunggah benar-benar gambar, bukan teks base64.
+   */
+  function base64ToBytes(b64) {
+    var clean = String(b64 || '').replace(/\s/g, '');
+    var binary = atob(clean);
+    var len = binary.length;
+    var out = new Uint8Array(len);
+    for (var i = 0; i < len; i++) out[i] = binary.charCodeAt(i);
+    return out;
+  }
+
+  /**
    * Unggah selfie ke bucket privat 'selfies'.
    * Path: {tanggal}/{student_id}_{jam}.{ext}
    * @param {string} dataUrl - data URL base64
@@ -236,6 +249,11 @@ var SBPag = (function () {
       var mime = meta.match(/image\/(\w+)/);
       var ext = mime ? mime[1] : 'jpg';
 
+      // PENTING: ubah base64 -> byte biner asli.
+      // Kalau string base64 dikirim apa adanya, Supabase menyimpan TEKS base64
+      // (bukan gambar), sehingga file tidak bisa ditampilkan.
+      var bytes = base64ToBytes(base64);
+
       // Path memakai tanggal server bila tersedia (konsisten dengan checkin_date)
       var dateStr = await getServerDate();
       var now = new Date();
@@ -246,9 +264,8 @@ var SBPag = (function () {
       var res = await window.__sb
         .storage
         .from('selfies')
-        .upload(filePath, base64, {
+        .upload(filePath, bytes, {
           contentType: 'image/' + ext,
-          encoding: 'base64',
           upsert: false
         });
 
@@ -492,6 +509,18 @@ var SBPag = (function () {
         return { error: 'GAGAL_UNDUH_SELFIE', detail: 'HTTP ' + resp.status };
       }
       var blob = await resp.blob();
+
+      // Toleransi file lama: sebagian selfie tersimpan sebagai TEKS base64
+      // (bukan biner) karena bug unggah sebelumnya. Deteksi lalu perbaiki
+      // di sisi klien supaya tetap bisa ditampilkan.
+      var head = (await blob.slice(0, 8).text()).trim();
+      if (head.indexOf('/9j/') === 0 || head.indexOf('iVBOR') === 0) {
+        // Isinya base64 -> decode jadi biner
+        var b64text = await blob.text();
+        var bin = base64ToBytes(b64text);
+        var guess = head.indexOf('iVBOR') === 0 ? 'image/png' : 'image/jpeg';
+        blob = new Blob([bin], { type: guess });
+      }
 
       // Pastikan memang gambar
       if (blob.type && blob.type.indexOf('image') !== 0 && blob.type.indexOf('octet-stream') === -1) {

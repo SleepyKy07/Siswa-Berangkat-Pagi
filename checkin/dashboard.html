@@ -67,7 +67,7 @@
       </div>
     </div>
     <p class="small">Data diperbarui otomatis dari server. Waktu memakai jam server, bukan jam device siswa.
-      <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:99px;background:#e6f6f3;color:var(--primary-dark);font-weight:700;font-size:.7rem;">versi 5</span>
+      <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:99px;background:#e6f6f3;color:var(--primary-dark);font-weight:700;font-size:.7rem;">versi 6</span>
     </p>
   </div>
 
@@ -163,8 +163,8 @@
   </div>
 </div>
 
-<script src="../assets/js/supabase-config.js?v=5"></script>
-<script src="../assets/js/supabase-client.js?v=5"></script>
+<script src="../assets/js/supabase-config.js?v=6"></script>
+<script src="../assets/js/supabase-client.js?v=6"></script>
 <script>
 'use strict';
 (function () {
@@ -359,7 +359,7 @@
       $('#selfieError').style.display = 'none';
       $('#selfieLink').style.display = 'none';
       $('#selfieLoading').style.display = 'block';
-      $('#selfieLoading').textContent = 'Memuat selfie ' + (nama || 'siswa') + 'â€¦';
+      $('#selfieLoading').textContent = 'Memuat selfie ' + (nama || 'siswa') + 'Ã¢â‚¬Â¦';
       modalSelfie.classList.add('buka');
 
       var res = await window.SBPag.getSelfieBlob(path);
@@ -369,7 +369,7 @@
         $('#selfieError').style.display = 'block';
         $('#selfieError').textContent =
           'Gagal memuat selfie: ' + (res.detail || res.error || 'tidak diketahui') +
-          ' â€” pastikan policy storage "Selfie sign selfies" sudah dijalankan (supabase/fix-storage.sql).';
+          ' Ã¢â‚¬â€ pastikan policy storage "Selfie sign selfies" sudah dijalankan (supabase/fix-storage.sql).';
         return;
       }
 
