@@ -189,6 +189,7 @@ body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border
         <div class="actions" style="margin:0">
           <button type="button" class="btn primary" id="btnGenerateJadwal">&#128203; Buat Jadwal</button>
           <button type="button" class="btn soft small" id="btnPrint">&#128424; Cetak</button>
+          <button type="button" class="btn danger small" id="btnHapusJadwal">&#128465; Hapus Semua Jadwal</button>
         </div>
       </div>
       <div class="notice" style="margin-bottom: 10px">
@@ -542,6 +543,19 @@ function simpanEdit(){
   toast('Jadwal diperbarui untuk '+dateText(key));
 }
 function cmd(ids,dir){ids.forEach(function(id){db.hitung[id]=(db.hitung[id]||0)+dir});}
+function hapusSemuaJadwal(){
+  if(!Object.keys(db.jadwal).length){alert('Belum ada jadwal untuk dihapus.');return}
+  if(!confirm('Hapus SEMUA jadwal? Jumlah tugas anggota akan disesuaikan. Tindakan ini tidak bisa dibatalkan.'))return;
+  for(var k in db.jadwal){
+    var en=db.jadwal[k];
+    if(en&&en.petugas)en.petugas.forEach(function(id){if(id)db.hitung[id]=Math.max(0,(db.hitung[id]||0)-1)});
+  }
+  db.jadwal={};
+  tglPilih=null;
+  save();
+  renderBulanNav();renderKalender();renderEditor();renderStatistik();
+  toast('Semua jadwal dihapus.');
+}
 function toast(msg){
   var t=document.querySelector('.toastCard');if(t)t.remove();
   var d=document.createElement('div');d.className='toastCard';
@@ -641,6 +655,7 @@ $('#btnGenerateJadwal').addEventListener('click',function(){
   if(end&&generateSchedule(end)){toast('Jadwal dibuat hingga '+end);renderBulanNav();renderKalender();renderStatistik();}
 });
 $('#btnPrint').addEventListener('click',printJadwal);
+$('#btnHapusJadwal').addEventListener('click',hapusSemuaJadwal);
 $('#btnTutupSettings').addEventListener('click',function(){$('#modalSettings').classList.remove('buka')});
 document.addEventListener('click',function(e){if(e.target&&e.target.id==='btnSaveEdit')simpanEdit()});
 $('#modalSettings').addEventListener('click',function(e){if(e.target===$('#modalSettings'))$('#modalSettings').classList.remove('buka')});
