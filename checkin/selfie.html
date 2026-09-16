@@ -51,7 +51,11 @@
       <canvas id="canvas"></canvas>
     </div>
 
-    <div class="notice" id="permissionNotice" style="display:none;">&#9888; Akses kamera ditolak. Tidak bisa mengambil selfie. Hubungi petugas.</div>
+    <div class="notice" id="permissionNotice" style="display:none;"></div>
+
+    <div class="btn-row hidden" id="retryRow">
+      <button type="button" class="btn" id="btnRetryCamera">&#8637; Coba Lagi</button>
+    </div>
 
     <div class="btn-row hidden" id="controlsHidden">
       <button type="button" class="btn" id="btnCapture">&#128248; Ambil Foto</button>
@@ -113,6 +117,10 @@
     $('#btnCapture').addEventListener('click', capturePhoto);
     $('#btnRetake').addEventListener('click', retakePhoto);
     $('#btnUse').addEventListener('click', submitCheckIn);
+    $('#btnRetryCamera').addEventListener('click', function () {
+      resetCameraUI();
+      startCamera();
+    });
   });
 
   function escapeHtml(v) {
@@ -121,25 +129,105 @@
     });
   }
 
+  // Tampilkan pesan spesifik + panduan sesuai penyebab
+  function showCameraError(title, detail) {
+    $('#videoWrap').style.display = 'none';
+    $('#controlsHidden').classList.add('hidden');
+    $('#permissionNotice').style.display = 'block';
+    $('#permissionNotice').innerHTML =
+      '<strong>' + title + '</strong><br>' + detail;
+    var r = $('#retryRow');
+    if (r) r.classList.remove('hidden');
+  }
+
+  function resetCameraUI() {
+    $('#permissionNotice').style.display = 'none';
+    $('#videoWrap').style.display = 'block';
+    $('#retryRow').classList.add('hidden');
+    $('#previewBox').classList.add('hidden');
+    $('#controlsPreview').classList.add('hidden');
+    video.style.display = 'block';
+  }
+
   function startCamera() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      $('#videoWrap').style.display = 'none';
-      $('#permissionNotice').style.display = 'block';
+    // 1. Secure context: getUserMedia hanya jalan di https:// atau localhost
+    var secure = window.isSecureContext;
+    if (!secure) {
+      showCameraError(
+        'Kamera diblokir: koneksi tidak aman (bukan HTTPS)',
+        'Browser hanya mengizinkan kamera lewat <b>https://</b> atau <b>localhost</b>. ' +
+        'Saat ini halaman dibuka lewat <code>' + location.origin + '</code>. ' +
+        'Buka lewat URL <b>https</b> (versi GitHub Pages) atau <b>http://localhost:8080</b> di laptop.'
+      );
       return;
     }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+
+    // 2. Browser mendukung mediaDevices?
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      showCameraError(
+        'Browser tidak mendukung kamera',
+        'Gunakan Chrome, Edge, atau Safari terbaru.'
+      );
+      return;
+    }
+
+    var constraints = {
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false
+    };
+
+    navigator.mediaDevices.getUserMedia(constraints)
       .then(function (s) {
         stream = s;
         video.srcObject = s;
-        video.play();
+        var p = video.play();
+        if (p && p.catch) p.catch(function () { /* autoplay bisa ditolak, abaikan */ });
         $('#controlsHidden').classList.remove('hidden');
         $('#permissionNotice').style.display = 'none';
       })
       .catch(function (err) {
         console.error('[SELFIE] Camera error:', err);
-        $('#videoWrap').style.display = 'none';
-        $('#controlsHidden').classList.add('hidden');
-        $('#permissionNotice').style.display = 'block';
+        var name = (err && err.name) || '';
+        var msg = (err && err.message) || '';
+
+        if (name === 'NotAllowedError' || name === 'SecurityError') {
+          showCameraError(
+            'Izin kamera ditolak',
+            'Kamu menolak akses kamera. Cara mengizinkan: klik ikon <b>gembok/kamera</b> di ' +
+            'address bar browser &rarr; izinkan <b>Kamera</b> &rarr; muat ulang halaman. ' +
+            'Atau buka <b>Pengaturan situs &rarr; Kamera &rarr; Izinkan</b>.'
+          );
+        } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+          showCameraError(
+            'Kamera tidak ditemukan',
+            'Perangkat ini tidak punya kamera. Gunakan HP dengan kamera untuk selfie.'
+          );
+        } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+          showCameraError(
+            'Kamera sedang dipakai aplikasi lain',
+            'Tutup aplikasi lain yang memakai kamera (mis. aplikasi Kamera, Zoom, WhatsApp), ' +
+            'lalu klik Coba Lagi.'
+          );
+        } else if (name === 'OverconstrainedError') {
+          // Coba ulang tanpa syarat khusus
+          navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+            .then(function (s) {
+              stream = s;
+              video.srcObject = s;
+              video.play();
+              $('#controlsHidden').classList.remove('hidden');
+              $('#permissionNotice').style.display = 'none';
+            })
+            .catch(function () {
+              showCameraError('Kamera gagal dibuka', 'Coba muat ulang halaman.');
+            });
+        } else {
+          showCameraError(
+            'Kamera gagal dibuka',
+            'Penyebab: <code>' + (name || 'tidak diketahui') + '</code> ' +
+            (msg ? '(' + msg + ')' : '') + '. Coba muat ulang halaman.'
+          );
+        }
       });
   }
 

@@ -69,6 +69,34 @@ pip install "qrcode[pil]"
 python -c "import qrcode; qrcode.make('URL_BARU').save('assets/images/qr-checkin-bw.png')"
 ```
 
+## Kamera & HTTPS (penting)
+
+Browser **hanya mengizinkan kamera** (`getUserMedia`) di *secure context*:
+
+| Cara buka | Kamera |
+|-----------|--------|
+| `https://...` (mis. GitHub Pages) | ✅ jalan |
+| `http://localhost:8080` / `http://127.0.0.1:8080` | ✅ jalan |
+| `http://10.180.x.x:8080` (IP LAN) | ❌ diblokir browser |
+| `file:///...` (buka file langsung) | ❌ diblokir browser |
+
+Jika kamera ditolak, halaman selfie sekarang menampilkan **pesan spesifik**
+(izin ditolak / tidak ada kamera / dipakai aplikasi lain / bukan HTTPS)
+beserta tombol **Coba Lagi**.
+
+### Uji di HP lewat LAN (butuh HTTPS)
+
+```bash
+python scripts/serve-https.py
+```
+
+Lalu buka (terima peringatan sertifikat self-signed):
+
+- Laptop: `https://localhost:8443/checkin/`
+- HP: `https://<IP-LAN>:8443/checkin/`
+
+Sertifikat dev disimpan di `.certs/` dan **tidak di-commit** (berisi private key).
+
 ## Setup Backend (Supabase Gratis)
 
 1. Daftar di https://supabase.com → buat project baru
