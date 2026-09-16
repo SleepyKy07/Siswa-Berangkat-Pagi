@@ -28,7 +28,6 @@
     .btn-row{display:flex;gap:9px;margin-top:12px;flex-wrap:wrap}
     .btn-row .btn{flex:1}
     .notice{padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:.82rem}
-    .privacy{padding:12px 14px;border-radius:12px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;font-size:.78rem;line-height:1.5;margin-top:14px}
     .hidden{display:none}
     .preview{position:relative;border-radius:12px;overflow:hidden;background:#f0fdfa;border:1px solid var(--line);margin-top:12px}
     .preview img{width:100%;display:block}
@@ -70,8 +69,6 @@
     <div class="preview hidden" id="previewBox">
       <img id="previewImg" alt="Preview selfie">
     </div>
-
-    <div class="privacy">&#128274; <strong>Penggunaan foto:</strong> Selfie hanya digunakan sebagai bukti check-in kehadiran di gerbang. Foto disimpan di penyimpanan privat (tidak publik), hanya dapat dilihat pihak berwenang, dan tidak dipakai untuk face recognition.</div>
   </div>
 </div>
 
@@ -262,7 +259,7 @@
   async function submitCheckIn() {
     var btn = $('#btnUse');
     btn.disabled = true;
-    btn.textContent = 'MengirimÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦';
+    btn.textContent = 'MengirimÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦';
 
     try {
       var selfieDataUrl = $('#previewImg').src;
@@ -288,7 +285,7 @@
         return;
       }
 
-      // Sukses ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â simpan untuk halaman sukses, bersihkan state sementara
+      // Sukses ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â simpan untuk halaman sukses, bersihkan state sementara
       try {
         sessionStorage.setItem('lastCheckinStudent', JSON.stringify(result.student));
         sessionStorage.setItem('lastCheckinTimestamp', result.timestamp);
