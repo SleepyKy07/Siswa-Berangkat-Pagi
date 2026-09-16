@@ -494,6 +494,99 @@ as $$
 $$;
 
 /* ================================================================
+   11. HAPUS RIWAYAT (khusus admin)
+   ================================================================
+   Menghapus riwayat check-in (bukan hari ini) + data pending yang sudah
+   ditinjau. File selfie di Storage dihapus terpisah oleh klien memakai
+   daftar path dari collect_selfie_paths().
+   ================================================================ */
+
+-- 11a. Kumpulkan path selfie yang akan ikut terhapus (dipanggil SEBELUM hapus).
+-- p_mode: 'all'  -> semua riwayat sebelum hari ini
+--         'date' -> riwayat sebelum p_before_date (inklusif tidak dihapus)
+create or replace function collect_selfie_paths(p_mode text, p_before_date date default null)
+returns table (selfie_path text)
+language sql
+security definer
+as $$
+  select c.selfie_path
+  from check_ins c
+  where c.selfie_path is not null
+    and c.checkin_date < current_date
+    and (
+      p_mode = 'all'
+      or (p_mode = 'date' and p_before_date is not null and c.checkin_date < p_before_date)
+    );
+$$;
+
+-- 11b. Hitung berapa data yang akan terhapus (untuk konfirmasi admin).
+create or replace function count_history_to_delete(p_mode text, p_before_date date default null)
+returns jsonb
+language sql
+security definer
+as $$
+  select jsonb_build_object(
+    'checkins', (
+      select count(*) from check_ins c
+      where c.checkin_date < current_date
+        and (p_mode = 'all' or (p_mode = 'date' and p_before_date is not null and c.checkin_date < p_before_date))
+    ),
+    'pending', (
+      select count(*) from pending_students p
+      where p.status in ('approved', 'rejected')
+        and (
+          p_mode = 'all'
+          or (p_mode = 'date' and p_before_date is not null and p.created_at::date < p_before_date)
+        )
+    )
+  );
+$$;
+
+-- 11c. Hapus riwayat: check-in sebelum tanggal tertentu / semua + pending yang
+-- sudah ditinjau. Hari ini TIDAK PERNAH dihapus.
+create or replace function delete_checkin_history(p_mode text, p_before_date date default null)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_checkins int := 0;
+  v_pending int := 0;
+begin
+  if p_mode not in ('all', 'date') then
+    return jsonb_build_object('error', 'MODE_TIDAK_VALID');
+  end if;
+  if p_mode = 'date' and p_before_date is null then
+    return jsonb_build_object('error', 'TANGGAL_WAJIB_DIISI');
+  end if;
+
+  -- Hapus pending yang sudah ditinjau
+  delete from pending_students p
+  where p.status in ('approved', 'rejected')
+    and (
+      p_mode = 'all'
+      or (p_mode = 'date' and p.created_at::date < p_before_date)
+    );
+  get diagnostics v_pending = row_count;
+
+  -- Hapus check-in (hari ini selalu dibiarkan)
+  delete from check_ins c
+  where c.checkin_date < current_date
+    and (
+      p_mode = 'all'
+      or (p_mode = 'date' and c.checkin_date < p_before_date)
+    );
+  get diagnostics v_checkins = row_count;
+
+  return jsonb_build_object(
+    'success', true,
+    'checkins_deleted', v_checkins,
+    'pending_deleted', v_pending
+  );
+end;
+$$;
+
+/* ================================================================
    9. CONTOH / CARA MENGISI DATA SISWA (tanpa NIS)
    ================================================================
    Cara termudah: Supabase Dashboard -> Table Editor -> students ->

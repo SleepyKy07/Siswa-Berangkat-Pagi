@@ -550,6 +550,100 @@ var SBPag = (function () {
     } catch (e) { /* ignore */ }
   }
 
+  // --- HAPUS RIWAYAT (admin) ---
+
+  /**
+   * Hitung berapa data yang akan terhapus (untuk konfirmasi admin).
+   * @param {'all'|'date'} mode
+   * @param {string} [beforeDate] - 'YYYY-MM-DD' (wajib bila mode='date')
+   */
+  async function countHistoryToDelete(mode, beforeDate) {
+    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    try {
+      var res = await window.__sb.rpc('count_history_to_delete', {
+        p_mode: mode,
+        p_before_date: mode === 'date' ? (beforeDate || null) : null
+      });
+      if (res.error) return { error: 'GAGAL_HITUNG', detail: res.error.message };
+      return { data: res.data || {}, error: null };
+    } catch (err) {
+      console.error('[SB] countHistoryToDelete exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  /**
+   * Hapus riwayat check-in (bukan hari ini) + data pending yang sudah ditinjau.
+   * File selfie di Storage ikut dihapus (diambil sebelum baris DB dihapus).
+   *
+   * @param {'all'|'date'} mode
+   * @param {string} [beforeDate] - 'YYYY-MM-DD' (wajib bila mode='date')
+   * @returns {Promise<Object>} { success, checkinsDeleted, pendingDeleted, selfiesDeleted, selfieErrors }
+   */
+  async function deleteHistory(mode, beforeDate) {
+    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+
+    if (mode === 'date' && !beforeDate) {
+      return { error: 'TANGGAL_WAJIB_DIISI' };
+    }
+
+    var paths = [];
+    var selfiesDeleted = 0;
+    var selfieErrors = 0;
+
+    try {
+      // 1. Kumpulkan path selfie SEBELUM baris database dihapus
+      var gp = await window.__sb.rpc('collect_selfie_paths', {
+        p_mode: mode,
+        p_before_date: mode === 'date' ? beforeDate : null
+      });
+      if (gp.error) {
+        return { error: 'GAGAL_AMBIL_SELFIE', detail: gp.error.message };
+      }
+      paths = (gp.data || []).map(function (r) { return r.selfie_path; }).filter(Boolean);
+
+      // 2. Hapus baris database (check_ins + pending yang ditinjau)
+      var del = await window.__sb.rpc('delete_checkin_history', {
+        p_mode: mode,
+        p_before_date: mode === 'date' ? beforeDate : null
+      });
+      if (del.error) return { error: 'GAGAL_HAPUS', detail: del.error.message };
+      var d = del.data || {};
+      if (d.error) return { error: d.error };
+
+      // 3. Hapus file selfie di Storage (best-effort, tidak menggagalkan proses)
+      if (paths.length > 0) {
+        // Supabase storage remove() menerima array path (maks ~1000 per panggilan)
+        for (var i = 0; i < paths.length; i += 100) {
+          var chunk = paths.slice(i, i + 100);
+          try {
+            var rm = await window.__sb.storage.from('selfies').remove(chunk);
+            if (rm.error) {
+              console.warn('[SB] Gagal hapus selfie:', rm.error.message);
+              selfieErrors += chunk.length;
+            } else {
+              selfiesDeleted += (rm.data || chunk).length;
+            }
+          } catch (e) {
+            console.warn('[SB] Exception hapus selfie:', e.message);
+            selfieErrors += chunk.length;
+          }
+        }
+      }
+
+      return {
+        success: true,
+        checkinsDeleted: d.checkins_deleted || 0,
+        pendingDeleted: d.pending_deleted || 0,
+        selfiesDeleted: selfiesDeleted,
+        selfieErrors: selfieErrors
+      };
+    } catch (err) {
+      console.error('[SB] deleteHistory exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
   // --- EXPORTS ---
 
   var api = {
@@ -568,7 +662,9 @@ var SBPag = (function () {
     getEarliestCheckInToday: getEarliestCheckInToday,
     getSelfieUrl: getSelfieUrl,
     getSelfieBlob: getSelfieBlob,
-    revokeSelfieBlob: revokeSelfieBlob
+    revokeSelfieBlob: revokeSelfieBlob,
+    countHistoryToDelete: countHistoryToDelete,
+    deleteHistory: deleteHistory
   };
 
   // Daftarkan sebagai global (untuk <script> biasa)

@@ -189,6 +189,21 @@ Dashboard dilindungi **PIN sederhana** (dicek di browser):
   sebagai **"Siswa Paling Pagi"** — ditampilkan di kartu khusus dashboard dan
   label pada baris pertama tabel.
 
+## Hapus Riwayat (Admin)
+
+Dashboard admin → kartu **Hapus Riwayat**:
+
+- **Cek Jumlah** — menghitung berapa data yang akan terhapus sebelum eksekusi.
+- **Hapus Sebelum Tanggal** — hapus riwayat sebelum tanggal tertentu.
+- **Hapus SEMUA Riwayat** — hapus semua riwayat (semua hari kecuali hari ini).
+
+Yang terhapus: baris `check_ins` (riwayat, **bukan hari ini**), `pending_students`
+yang sudah ditinjau (`approved`/`rejected`), dan **file selfie** di Storage.
+
+- Perlu konfirmasi dengan mengetik `HAPUS` (tidak bisa dibatalkan).
+- Data hari ini **selalu** dipertahankan.
+- Jika sebagian file selfie gagal dihapus, data tetap terhapus dan jumlah kegagalan dilaporkan.
+
 ## Fungsi Server (dijalankan oleh `supabase/setup.sql`)
 
 | Fungsi | Kegunaan |
@@ -199,6 +214,9 @@ Dashboard dilindungi **PIN sederhana** (dicek di browser):
 | `approve_pending_student(p_id)` | Setujui → masukkan ke tabel `students` |
 | `reject_pending_student(p_id)` | Abaikan data pending |
 | `list_today_checkins()` | Daftar check-in hari ini (siswa terdaftar & manual) |
+| `collect_selfie_paths(p_mode, p_before_date)` | Kumpulkan path selfie yang akan dihapus |
+| `count_history_to_delete(p_mode, p_before_date)` | Hitung jumlah data yang akan dihapus |
+| `delete_checkin_history(p_mode, p_before_date)` | Hapus riwayat check-in + pending yang ditinjau |
 | `get_server_date()` | Tanggal hari ini menurut server |
 | `find_students(p_q)` / `get_student_public(p_id)` | Utilitas lama (tidak dipakai alur utama) |
 | `submit_checkin(p_student_id, p_selfie_path)` | Alur lama berbasis id (tidak dipakai alur utama) |
@@ -224,5 +242,6 @@ Dashboard dilindungi **PIN sederhana** (dicek di browser):
 6. `checkin/login.html`: dari dropdown → form input nama + kelas.
 7. `checkin/dashboard.html`: kartu **Data Pending** + label "belum terdaftar".
 8. `checkin/selfie.html` & `success.html`: memakai nama+kelas manual.
-9. Geolocation/anti-asrama tetap **dinonaktifkan** (kolom lokasi tetap ada di DB,
-   tidak dipakai). Bisa diaktifkan kembali bila diperlukan.
+9. **Hapus riwayat** di dashboard admin (sebelum tanggal / semua, termasuk file selfie).
+10. Geolocation/anti-asrama tetap **dinonaktifkan** (kolom lokasi tetap ada di DB,
+    tidak dipakai). Bisa diaktifkan kembali bila diperlukan.
