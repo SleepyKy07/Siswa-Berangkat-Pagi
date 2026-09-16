@@ -49,26 +49,28 @@
       <li>Pastikan tidak ada error. Ini akan membuat:
         <ul>
           <li>Tabel <code>sessions</code> (1 baris, id=1) + fungsi <code>get_session_status()</code></li>
-          <li>Tabel <code>students</code> (dengan kolom <code>aktif</code>) dan <code>check_ins</code> (+ index harian)</li>
-          <li>Fungsi <code>find_students()</code>, <code>get_student_public()</code>, <code>submit_checkin()</code>, <code>get_server_date()</code>, <code>get_selfie_url()</code></li>
+          <li>Tabel <code>sessions</code> (1 baris, id=1) + fungsi <code>get_session_status()</code></li>
+          <li>Tabel <code>students</code>, <code>check_ins</code> (+ kolom <code>nama_manual</code>/<code>kelas_manual</code>), dan <code>pending_students</code></li>
+          <li>Fungsi <code>submit_checkin_manual()</code>, <code>list_pending_students()</code>,
+            <code>approve_pending_student()</code>, <code>reject_pending_student()</code>,
+            <code>list_today_checkins()</code>, <code>get_server_date()</code></li>
           <li>Bucket Storage <code>selfies</code> (privat; anon hanya boleh upload)</li>
         </ul>
       </li>
     </ol>
-    <div class="notice ok">Fungsi <code>get_session_status()</code> dan <code>submit_checkin()</code> memakai jam server PostgreSQL sebagai sumber waktu utama. Device siswa tidak dipercaya untuk waktu.</div>
+    <div class="notice ok">Fungsi <code>get_session_status()</code> dan <code>submit_checkin_manual()</code> memakai jam server PostgreSQL sebagai sumber waktu utama. Device siswa tidak dipercaya untuk waktu.</div>
   </div>
 
   <div class="card">
-    <h2>2b. Isi Data Siswa (tanpa NIS)</h2>
-    <p>Aplikasi tidak memakai NIS. Isi nama &amp; kelas tiap siswa:</p>
+    <h2>2b. Data Siswa (input manual)</h2>
+    <p>Siswa <strong>mengetik nama &amp; kelas sendiri</strong> saat check-in. Tidak perlu mengisi data siswa terlebih dahulu.</p>
     <ol>
-      <li>Buka <strong>Table Editor &rarr; students &rarr; Insert row</strong>.</li>
-      <li>Isi <code>nama</code> dan <code>kelas</code>. Kolom <code>nis</code> wajib diisi
-        nilai unik apa saja (mis. <code>S001</code>) karena warisan skema lama — tidak dipakai aplikasi.</li>
-      <li>Biarkan <code>aktif = true</code>. Set <code>false</code> untuk menonaktifkan siswa
-        (tidak muncul di pencarian, tidak bisa check-in).</li>
+      <li>Setiap check-in manual otomatis dicatat di tabel <code>pending_students</code>.</li>
+      <li>Buka <strong>checkin/dashboard.html</strong> &rarr; kartu <strong>Data Pending</strong>.</li>
+      <li>Klik <strong>Setujui</strong> untuk memasukkan siswa ke tabel <code>students</code>
+        (kolom <code>nis</code> diisi otomatis <code>AUTO-&lt;id&gt;</code>), atau <strong>Abai</strong>.</li>
     </ol>
-    <div class="notice">NIS tidak pernah ditampilkan atau diminta ke siswa.</div>
+    <div class="notice">Anti-duplikat dicek dari <b>nama + kelas</b> pada hari yang sama (abaikan besar/kecil huruf).</div>
   </div>
 
   <div class="card">
@@ -77,10 +79,10 @@
     <ul>
       <li>Untuk mempermudah tahap awal, aktifkan RLS lalu tambahkan policy <strong>read untuk semua orang (anon)</strong> di <code>sessions</code>.</li>
       <li>Untuk <code>students</code> &amp; <code>check_ins</code>, gunakan fungsi <code>security definer</code>
-        (<code>find_students</code>, <code>get_student_public</code>, <code>submit_checkin</code>) yang sudah
-        membatasi kolom (tanpa NIS).</li>
+        (<code>submit_checkin_manual</code>, <code>list_today_checkins</code>) yang sudah
+        membatasi kolom.</li>
       <li><strong>Jangan</strong> buat policy baca publik pada bucket <code>selfies</code>.
-        Selfie hanya dibuka admin via <code>get_selfie_url()</code> (tautan sementara 60 detik).</li>
+        Selfie hanya dibuka admin lewat signed URL sementara.</li>
     </ul>
     <div class="notice">Jangan simpan service_role key di frontend. Hanya gunakan <strong>anon/public key</strong> di <code>supabase-config.js</code>.</div>
   </div>
@@ -104,8 +106,8 @@
       <li>Buka <code>checkin/index.html</code> di browser (atau deploy ke GitHub Pages).</li>
       <li>Halaman otomatis memanggil <code>get_session_status()</code>.</li>
       <li>Jika backend terhubung: muncul status AKTIF / NONAKTIF sesuai server.</li>
-      <li>Jika AKTIF → <strong>Lanjutkan Absensi</strong> → cari namamu di kotak pencarian
-        → pilih dari daftar → kelas terisi otomatis → ambil selfie → simpan.</li>
+      <li>Jika AKTIF → <strong>Lanjutkan Absensi</strong> → isi <b>nama</b> dan <b>kelas</b>
+        → ambil selfie → simpan.</li>
       <li>Jika backend belum dikonfigurasi: muncul pesan jelas, bukan crash.</li>
     </ol>
   </div>
@@ -130,12 +132,13 @@
           <li>Atur jam mulai &amp; selesai jadwal otomatis</li>
           <li>Melihat siswa paling pagi hari ini</li>
           <li>Melihat daftar check-in hari ini (nama, kelas, waktu)</li>
-          <li>Membuka selfie via tombol <strong>Lihat Selfie</strong> (tautan sementara 60 detik)</li>
+          <li>Membuka selfie via tombol <strong>Lihat Selfie</strong></li>
+          <li><strong>Data Pending</strong>: menyetujui / mengabaikan nama+kelas yang diketik manual</li>
         </ul>
       </li>
       <li>Status ditampilkan persis dari server via <code>get_session_status()</code>.</li>
     </ol>
-    <div class="notice">Dashboard saat ini <strong>tanpa login</strong>. Siapa pun yang tahu URL-nya bisa melihat data &amp; selfie. Tambahkan proteksi (Supabase Auth / PIN) bila akan dipakai produksi.</div>
+    <div class="notice">Dashboard dilindungi <strong>PIN</strong> (cek browser; atur di <code>DASHBOARD_PIN</code> pada <code>supabase-config.js</code>). Ini proteksi ringan, bukan keamanan sungguhan.</div>
   </div>
 
 </div>

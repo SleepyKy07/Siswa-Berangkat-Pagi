@@ -90,6 +90,30 @@ create table if not exists check_ins (
 create index if not exists idx_checkins_date on check_ins(checkin_date);
 create index if not exists idx_checkins_student on check_ins(student_id);
 
+-- 5b. Dukungan INPUT MANUAL (siswa mengetik nama & kelas sendiri).
+-- `student_id` dibuat nullable agar check-in bisa disimpan walau siswa belum
+-- terdaftar di tabel students. Nama & kelas asli dari siswa disimpan di kolom
+-- `nama_manual` / `kelas_manual`.
+alter table check_ins alter column student_id drop not null;
+alter table check_ins add column if not exists nama_manual text;
+alter table check_ins add column if not exists kelas_manual text;
+
+-- 5c. Tabel penampung data siswa yang diketik manual, menunggu ditinjau admin.
+-- Setelah disetujui admin, barisnya dipindahkan ke tabel `students`.
+create table if not exists pending_students (
+  id bigint generated always as identity primary key,
+  nama text not null,
+  kelas text not null,
+  checkin_id bigint references check_ins(id) on delete set null,
+  selfie_path text default null,
+  status text not null default 'pending' check (status in ('pending','approved','rejected')),
+  created_at timestamptz default now(),
+  reviewed_at timestamptz default null
+);
+
+create index if not exists idx_pending_status on pending_students(status);
+create index if not exists idx_pending_created on pending_students(created_at);
+
 -- 6. Bucket Storage untuk selfie (PRIVAT — tidak publik)
 -- Selfie hanya boleh diakses admin via signed URL, bukan anon/public.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -264,6 +288,210 @@ $$;
 -- Yang dibutuhkan hanyalah policy SELECT pada storage.objects (sudah dibuat di
 -- bagian 6). Fungsi SQL ini sengaja di-drop bila sebelumnya pernah dibuat.
 drop function if exists get_selfie_url(text, int);
+
+/* ================================================================
+   10. CHECK-IN DENGAN INPUT MANUAL (nama + kelas diketik siswa)
+   ================================================================
+   Siswa tidak lagi memilih dari daftar. Ia mengetik NAMA dan KELAS sendiri.
+   Data disimpan di check_ins (nama_manual/kelas_manual) DAN dicatat di
+   pending_students untuk ditinjau admin.
+   ================================================================ */
+
+-- 10a. Simpan check-in manual (server-validated).
+-- - Sesi harus AKTIF
+-- - Nama & kelas wajib (setelah dipangkas spasi)
+-- - Anti-duplikat: nama+kelas sama (abaikan besar/kecil huruf) pada hari yang sama
+-- - Tanggal & jam memakai WAKTU SERVER
+create or replace function submit_checkin_manual(
+  p_nama text,
+  p_kelas text,
+  p_selfie_path text default null
+)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_status jsonb;
+  v_nama text;
+  v_kelas text;
+  v_row check_ins;
+  v_pending_id bigint;
+begin
+  -- 1. Sesi harus aktif
+  v_status := get_session_status();
+  if (v_status ->> 'active')::boolean is not true then
+    return jsonb_build_object('error', 'ABSENSI_TIDAK_AKTIF');
+  end if;
+
+  -- 2. Bersihkan & validasi input
+  v_nama := regexp_replace(coalesce(trim(p_nama), ''), '\s+', ' ', 'g');
+  v_kelas := regexp_replace(coalesce(trim(p_kelas), ''), '\s+', ' ', 'g');
+
+  if length(v_nama) < 3 then
+    return jsonb_build_object('error', 'NAMA_TIDAK_VALID');
+  end if;
+  if length(v_nama) > 80 then
+    return jsonb_build_object('error', 'NAMA_TERLALU_PANJANG');
+  end if;
+  if length(v_kelas) < 1 then
+    return jsonb_build_object('error', 'KELAS_TIDAK_VALID');
+  end if;
+  if length(v_kelas) > 40 then
+    return jsonb_build_object('error', 'KELAS_TERLALU_PANJANG');
+  end if;
+
+  -- 3. Anti-duplikat: nama + kelas sama hari ini
+  if exists (
+    select 1 from check_ins c
+    where c.checkin_date = current_date
+      and lower(trim(coalesce(c.nama_manual, ''))) = lower(v_nama)
+      and lower(trim(coalesce(c.kelas_manual, ''))) = lower(v_kelas)
+  ) then
+    return jsonb_build_object('error', 'SUDAH_CHECKIN_HARI_INI');
+  end if;
+
+  -- 4. Simpan check-in (tanggal & jam server)
+  insert into check_ins (student_id, checkin_date, checked_in_at, selfie_path, nama_manual, kelas_manual)
+  values (null, current_date, now(), p_selfie_path, v_nama, v_kelas)
+  returning * into v_row;
+
+  -- 5. Catat ke pending_students untuk ditinjau admin
+  insert into pending_students (nama, kelas, checkin_id, selfie_path, status)
+  values (v_nama, v_kelas, v_row.id, p_selfie_path, 'pending')
+  returning id into v_pending_id;
+
+  return jsonb_build_object(
+    'success', true,
+    'checkin_id', v_row.id,
+    'pending_id', v_pending_id,
+    'timestamp', v_row.checked_in_at,
+    'nama', v_nama,
+    'kelas', v_kelas,
+    'selfie_path', v_row.selfie_path
+  );
+end;
+$$;
+
+-- 10b. Daftar data siswa yang menunggu ditinjau admin.
+create or replace function list_pending_students(p_status text default 'pending')
+returns table (
+  id bigint,
+  nama text,
+  kelas text,
+  status text,
+  selfie_path text,
+  created_at timestamptz
+)
+language sql
+security definer
+as $$
+  select p.id, p.nama, p.kelas, p.status, p.selfie_path, p.created_at
+  from pending_students p
+  where p.status = coalesce(nullif(trim(p_status), ''), 'pending')
+  order by p.created_at desc
+  limit 500;
+$$;
+
+-- 10c. Setujui data pending -> masukkan ke tabel students.
+-- Kolom `nis` wajib & unik, jadi diisi otomatis dengan 'AUTO-<id>' (tidak
+-- dipakai aplikasi maupun ditampilkan ke siswa).
+create or replace function approve_pending_student(p_id bigint)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_row pending_students;
+  v_nis text;
+  v_student_id bigint;
+begin
+  select * into v_row from pending_students where id = p_id;
+  if not found then
+    return jsonb_build_object('error', 'PENDING_TIDAK_DITEMUKAN');
+  end if;
+  if v_row.status <> 'pending' then
+    return jsonb_build_object('error', 'SUDAH_DITINJAU', 'status', v_row.status);
+  end if;
+
+  -- Cari siswa yang sudah ada dengan nama & kelas sama (hindari duplikat)
+  select s.id into v_student_id
+  from students s
+  where lower(trim(s.nama)) = lower(trim(v_row.nama))
+    and lower(trim(coalesce(s.kelas, ''))) = lower(trim(v_row.kelas))
+  limit 1;
+
+  if v_student_id is null then
+    v_nis := 'AUTO-' || p_id::text;
+    insert into students (nis, nama, kelas, aktif)
+    values (v_nis, v_row.nama, v_row.kelas, true)
+    on conflict (nis) do nothing
+    returning id into v_student_id;
+
+    -- Kalau bentrok nis (sudah ada), ambil baris yang ada
+    if v_student_id is null then
+      select s.id into v_student_id from students s where s.nis = v_nis;
+    end if;
+  end if;
+
+  -- Tautkan check-in ke siswa hasil penyetujuan
+  if v_row.checkin_id is not null and v_student_id is not null then
+    update check_ins set student_id = v_student_id where id = v_row.checkin_id;
+  end if;
+
+  update pending_students
+  set status = 'approved', reviewed_at = now()
+  where id = p_id;
+
+  return jsonb_build_object('success', true, 'student_id', v_student_id);
+end;
+$$;
+
+-- 10d. Abaikan data pending (tidak dimasukkan ke students).
+create or replace function reject_pending_student(p_id bigint)
+returns jsonb
+language plpgsql
+security definer
+as $$
+begin
+  update pending_students
+  set status = 'rejected', reviewed_at = now()
+  where id = p_id and status = 'pending';
+
+  if not found then
+    return jsonb_build_object('error', 'TIDAK_BISA_DIABAIKAN');
+  end if;
+  return jsonb_build_object('success', true);
+end;
+$$;
+
+-- 10e. Daftar check-in hari ini (mendukung siswa manual & terdaftar).
+-- Untuk siswa terdaftar -> pakai nama/kelas dari tabel students.
+-- Untuk siswa manual    -> pakai nama_manual/kelas_manual.
+create or replace function list_today_checkins()
+returns table (
+  id bigint,
+  nama text,
+  kelas text,
+  checked_in_at timestamptz,
+  selfie_path text,
+  is_pending boolean
+)
+language sql
+security definer
+as $$
+  select
+    c.id,
+    coalesce(s.nama, c.nama_manual, '(tanpa nama)') as nama,
+    coalesce(s.kelas, c.kelas_manual, '') as kelas,
+    c.checked_in_at,
+    c.selfie_path,
+    (c.student_id is null) as is_pending
+  from check_ins c
+  left join students s on s.id = c.student_id
+  where c.checkin_date = current_date
+  order by c.checked_in_at asc;
+$$;
 
 /* ================================================================
    9. CONTOH / CARA MENGISI DATA SISWA (tanpa NIS)

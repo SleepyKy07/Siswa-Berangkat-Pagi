@@ -91,48 +91,58 @@ var SBPag = (function () {
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
-  // --- PENCARIAN SISWA (TANPA NIS) ---
+  // --- DATA SISWA MANUAL & PENDING ---
 
   /**
-   * Cari siswa berdasarkan NAMA (case-insensitive).
-   * Hanya mengembalikan { id, nama, kelas } — tanpa NIS.
-   * @param {string} q - kata kunci nama (boleh kosong untuk 25 pertama)
-   * @returns {Promise<Object>} { students: Array, error }
+   * Daftar data siswa yang menunggu ditinjau admin.
+   * @param {string} [status] - 'pending' (default) | 'approved' | 'rejected'
+   * @returns {Promise<Object>} { items: Array, error }
    */
-  async function findStudentsByName(q) {
-    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI', students: [] };
-
+  async function listPendingStudents(status) {
+    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI', items: [] };
     try {
-      var res = await window.__sb.rpc('find_students', { p_q: q || '' });
+      var res = await window.__sb.rpc('list_pending_students', { p_status: status || 'pending' });
       if (res.error) {
-        console.error('[SB] find_students error:', res.error);
-        return { error: 'PENCARIAN_GAGAL', detail: res.error.message, students: [] };
+        console.error('[SB] list_pending_students error:', res.error);
+        return { error: 'GAGAL_MUAT_PENDING', detail: res.error.message, items: [] };
       }
-      return { students: res.data || [], error: null };
+      return { items: res.data || [], error: null };
     } catch (err) {
-      console.error('[SB] findStudentsByName exception:', err);
-      return { error: 'EXCEPTION', detail: err.message, students: [] };
+      console.error('[SB] listPendingStudents exception:', err);
+      return { error: 'EXCEPTION', detail: err.message, items: [] };
     }
   }
 
   /**
-   * Ambil identitas publik siswa (nama + kelas) dari id internal.
-   * Dipakai untuk menampilkan kelas otomatis setelah nama dipilih.
-   * @param {number|string} id
-   * @returns {Promise<Object>} { student: {id, nama, kelas} | null, error }
+   * Setujui data pending -> dipindahkan ke tabel students.
+   * @param {number|string} id - id baris pending_students
    */
-  async function getStudentPublic(id) {
+  async function approvePendingStudent(id) {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
-
     try {
-      var res = await window.__sb.rpc('get_student_public', { p_id: id });
-      if (res.error) {
-        return { error: 'GAGAL_AMBIL_SISWA', detail: res.error.message };
-      }
-      if (!res.data) return { error: 'SISWA_TIDAK_DITEMUKAN' };
-      return { student: res.data, error: null };
+      var res = await window.__sb.rpc('approve_pending_student', { p_id: id });
+      if (res.error) return { error: 'GAGAL_SETUJUI', detail: res.error.message };
+      if (res.data && res.data.error) return { error: res.data.error };
+      return { success: true, data: res.data };
     } catch (err) {
-      console.error('[SB] getStudentPublic exception:', err);
+      console.error('[SB] approvePendingStudent exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  /**
+   * Abaikan data pending (tidak dimasukkan ke students).
+   * @param {number|string} id
+   */
+  async function rejectPendingStudent(id) {
+    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    try {
+      var res = await window.__sb.rpc('reject_pending_student', { p_id: id });
+      if (res.error) return { error: 'GAGAL_ABAIKAN', detail: res.error.message };
+      if (res.data && res.data.error) return { error: res.data.error };
+      return { success: true };
+    } catch (err) {
+      console.error('[SB] rejectPendingStudent exception:', err);
       return { error: 'EXCEPTION', detail: err.message };
     }
   }
@@ -231,11 +241,11 @@ var SBPag = (function () {
 
   /**
    * Unggah selfie ke bucket privat 'selfies'.
-   * Path: {tanggal}/{student_id}_{jam}.{ext}
+   * Path: {tanggal}/{nama-slug}_{jam}_{random}.{ext}
    * @param {string} dataUrl - data URL base64
    * @param {number|string} studentId - id internal siswa
    */
-  async function uploadSelfie(dataUrl, studentId) {
+  async function uploadSelfie(dataUrl, ownerTag) {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
     if (!dataUrl || dataUrl.indexOf('data:image/') !== 0) {
@@ -259,7 +269,8 @@ var SBPag = (function () {
       var now = new Date();
       var timeStr = String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
       var rand = Math.random().toString(36).slice(2, 7);
-      var filePath = dateStr + '/' + studentId + '_' + timeStr + '_' + rand + '.' + ext;
+      var tag = slugify(ownerTag || 'siswa');
+      var filePath = dateStr + '/' + tag + '_' + timeStr + '_' + rand + '.' + ext;
 
       var res = await window.__sb
         .storage
@@ -288,14 +299,21 @@ var SBPag = (function () {
   // --- CHECK-IN ---
 
   /**
-   * Catat check-in siswa. Validasi & timestamp dilakukan SERVER
-   * lewat RPC submit_checkin().
-   * @param {number|string} studentId - id internal siswa (bukan NIS)
+   * Catat check-in dengan NAMA & KELAS yang diketik siswa sendiri.
+   * Validasi, anti-duplikat, dan timestamp dilakukan SERVER lewat RPC
+   * submit_checkin_manual().
+   * @param {string} nama - nama siswa (input bebas)
+   * @param {string} kelas - kelas siswa (input bebas)
    * @param {string} selfieDataUrl - data URL foto selfie (opsional)
    * @returns {Promise<Object>} { success, nama, kelas, timestamp, selfiePath } | { error, detail }
    */
-  async function submitCheckIn(studentId, selfieDataUrl) {
+  async function submitCheckInManual(nama, kelas, selfieDataUrl) {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+
+    var n = String(nama || '').trim();
+    var k = String(kelas || '').trim();
+    if (n.length < 3) return { error: 'NAMA_TIDAK_VALID', detail: 'Nama minimal 3 karakter.' };
+    if (k.length < 1) return { error: 'KELAS_TIDAK_VALID', detail: 'Kelas wajib diisi.' };
 
     // Langkah 1: pastikan sesi AKTIF (server-side)
     var statusResult = await getSessionStatus();
@@ -306,17 +324,11 @@ var SBPag = (function () {
       return { error: 'ABSENSI_TIDAK_AKTIF', detail: statusResult.manual_override || 'Tidak dalam jadwal' };
     }
 
-    // Langkah 2: validasi siswa (nama + kelas dari server)
-    var studentResult = await getStudentPublic(studentId);
-    if (studentResult.error) {
-      return { error: 'SISWA_TIDAK_DITEMUKAN', detail: studentResult.error };
-    }
-    var student = studentResult.student;
-
-    // Langkah 3: upload selfie (jika ada). Kegagalan upload tidak memblokir check-in.
+    // Langkah 2: upload selfie (jika ada). Kegagalan upload tidak memblokir check-in.
     var selfiePath = null;
     if (selfieDataUrl) {
-      var uploadResult = await uploadSelfie(selfieDataUrl, student.id);
+      // Pakai nama sebagai penanda folder file (bukan id, karena id belum ada)
+      var uploadResult = await uploadSelfie(selfieDataUrl, slugify(n));
       if (uploadResult.error) {
         console.warn('[SB] Selfie upload failed:', uploadResult.error);
       } else {
@@ -324,10 +336,11 @@ var SBPag = (function () {
       }
     }
 
-    // Langkah 4: simpan check-in via RPC (tanggal & jam SERVER, anti-duplikat)
+    // Langkah 3: simpan check-in via RPC (tanggal & jam SERVER, anti-duplikat)
     try {
-      var res = await window.__sb.rpc('submit_checkin', {
-        p_student_id: student.id,
+      var res = await window.__sb.rpc('submit_checkin_manual', {
+        p_nama: n,
+        p_kelas: k,
         p_selfie_path: selfiePath
       });
 
@@ -335,51 +348,48 @@ var SBPag = (function () {
 
       var data = res.data || {};
       if (data.error) {
-        // Error logis dari server: ABSENSI_TIDAK_AKTIF / SUDAH_CHECKIN_HARI_INI / SISWA_TIDAK_DITEMUKAN
+        // Error logis: ABSENSI_TIDAK_AKTIF / SUDAH_CHECKIN_HARI_INI / NAMA_TIDAK_VALID / ...
         return { error: data.error, detail: data.error };
       }
 
       return {
         success: true,
-        student: { id: student.id, nama: student.nama, kelas: student.kelas },
+        student: { nama: data.nama || n, kelas: data.kelas || k },
         timestamp: data.timestamp,
         selfiePath: data.selfie_path || selfiePath,
-        checkinId: data.checkin_id
+        checkinId: data.checkin_id,
+        pendingId: data.pending_id
       };
     } catch (err) {
-      console.error('[SB] submitCheckIn exception:', err);
+      console.error('[SB] submitCheckInManual exception:', err);
       return { error: 'EXCEPTION', detail: err.message };
     }
+  }
+
+  // Ubah nama jadi potongan aman untuk nama file
+  function slugify(s) {
+    return String(s || 'siswa')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 24) || 'siswa';
   }
 
   // --- TODAY CHECK-INS (dashboard admin) ---
 
   /**
    * Daftar check-in hari ini (tanggal server), urut dari paling pagi.
-   * Mengembalikan baris check_ins + relasi students(nama, kelas).
-   * TANPA NIS.
-   * @returns {Promise<Array>}
+   * Memakai RPC list_today_checkins() yang mendukung siswa terdaftar
+   * maupun siswa manual (nama/kelas diketik sendiri).
+   * @returns {Promise<Array>} array { id, nama, kelas, checked_in_at, selfie_path, is_pending }
    */
   async function getTodayCheckIns() {
     if (!init()) return [];
 
-    var todayStr = await getServerDate();
-
     try {
-      var res = await window.__sb
-        .from('check_ins')
-        .select(`
-          id,
-          student_id,
-          checked_in_at,
-          selfie_path,
-          students!inner(nama, kelas)
-        `)
-        .eq('checkin_date', todayStr)
-        .order('checked_in_at', { ascending: true });
-
+      var res = await window.__sb.rpc('list_today_checkins');
       if (res.error) {
-        console.error('[SB] getTodayCheckIns error:', res.error);
+        console.error('[SB] list_today_checkins error:', res.error);
         return [];
       }
       return res.data || [];
@@ -405,9 +415,8 @@ var SBPag = (function () {
 
     return {
       student: {
-        id: earliest.student_id,
-        nama: earliest.students ? earliest.students.nama : 'Siswa',
-        kelas: earliest.students ? earliest.students.kelas : ''
+        nama: earliest.nama || 'Siswa',
+        kelas: earliest.kelas || ''
       },
       timestamp: earliest.checked_in_at
     };
@@ -547,13 +556,14 @@ var SBPag = (function () {
     init: init,
     getSessionStatus: getSessionStatus,
     getServerDate: getServerDate,
-    findStudentsByName: findStudentsByName,
-    getStudentPublic: getStudentPublic,
+    listPendingStudents: listPendingStudents,
+    approvePendingStudent: approvePendingStudent,
+    rejectPendingStudent: rejectPendingStudent,
     setSessionInactive: setSessionInactive,
     setSessionActive: setSessionActive,
     setSchedule: setSchedule,
     uploadSelfie: uploadSelfie,
-    submitCheckIn: submitCheckIn,
+    submitCheckInManual: submitCheckInManual,
     getTodayCheckIns: getTodayCheckIns,
     getEarliestCheckInToday: getEarliestCheckInToday,
     getSelfieUrl: getSelfieUrl,

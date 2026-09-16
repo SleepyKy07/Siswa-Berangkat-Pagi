@@ -67,7 +67,7 @@
       </div>
     </div>
     <p class="small">Data diperbarui otomatis dari server. Waktu memakai jam server, bukan jam device siswa.
-      <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:99px;background:#e6f6f3;color:var(--primary-dark);font-weight:700;font-size:.7rem;">versi 6</span>
+      <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:99px;background:#e6f6f3;color:var(--primary-dark);font-weight:700;font-size:.7rem;">versi 7</span>
     </p>
   </div>
 
@@ -110,6 +110,19 @@
     </div>
     <div id="todayCheckinsContainer" class="empty">Memuat&hellip;</div>
     <p class="small" style="margin-top:8px">&#128274; Selfie disimpan di storage privat. Tombol &ldquo;Lihat Selfie&rdquo; membuat tautan sementara (berlaku 1 jam).</p>
+  </div>
+
+  <!-- Data siswa pending (nama/kelas diketik manual) -->
+  <div class="card">
+    <div class="section-head">
+      <h2>&#128203; Data Pending <span id="pendingCount" style="color:var(--muted);font-weight:400"></span></h2>
+      <button class="btn soft btn-small" id="btnReloadPending">&#8637; Muat Ulang</button>
+    </div>
+    <p class="small" style="margin-bottom:8px">
+      Data siswa yang diketik manual oleh siswa saat check-in. Klik <b>Setujui</b> untuk memasukkannya
+      ke daftar siswa resmi, atau <b>Abaikan</b> bila tidak diperlukan.
+    </p>
+    <div id="pendingContainer" class="empty">Memuat&hellip;</div>
   </div>
 
 </div>
@@ -163,8 +176,8 @@
   </div>
 </div>
 
-<script src="../assets/js/supabase-config.js?v=6"></script>
-<script src="../assets/js/supabase-client.js?v=6"></script>
+<script src="../assets/js/supabase-config.js?v=7"></script>
+<script src="../assets/js/supabase-client.js?v=7"></script>
 <script>
 'use strict';
 (function () {
@@ -237,6 +250,7 @@
 
     function startDashboard() {
       initDashboard();
+      loadPending();
     }
 
     // Cek status PIN tersimpan (berlaku per sesi tab)
@@ -319,19 +333,22 @@
         '</tr></thead><tbody>';
 
       checkIns.forEach(function (ci, idx) {
-        var s = ci.students || {};
         var no = idx + 1;
         var isEarliest = idx === 0;
         var selfieCell;
         if (ci.selfie_path) {
-          selfieCell = '<button class="btn soft btn-small btn-selfie" data-path="' + escapeHtml(ci.selfie_path) + '" data-nama="' + escapeHtml(s.nama || '') + '">&#128247; Lihat</button>';
+          selfieCell = '<button class="btn soft btn-small btn-selfie" data-path="' + escapeHtml(ci.selfie_path) + '" data-nama="' + escapeHtml(ci.nama || '') + '">&#128247; Lihat</button>';
         } else {
           selfieCell = '<span class="small">-</span>';
         }
+        var nameCell = escapeHtml(ci.nama || '-');
+        if (ci.is_pending) {
+          nameCell += ' <span class="tag">belum terdaftar</span>';
+        }
         html += '<tr' + (isEarliest ? ' style="background:#fffbeb"' : '') + '>' +
           '<td>' + no + '</td>' +
-          '<td>' + escapeHtml(s.nama || '-') + (isEarliest ? ' <span class="tag">paling pagi</span>' : '') + '</td>' +
-          '<td>' + escapeHtml(s.kelas || '-') + '</td>' +
+          '<td>' + nameCell + (isEarliest ? ' <span class="tag">paling pagi</span>' : '') + '</td>' +
+          '<td>' + escapeHtml(ci.kelas || '-') + '</td>' +
           '<td>' + escapeHtml(fmtTime(ci.checked_in_at)) + '</td>' +
           '<td>' + selfieCell + '</td>' +
           '</tr>';
@@ -343,6 +360,75 @@
       Array.prototype.forEach.call(todayCheckinsContainer.querySelectorAll('.btn-selfie'), function (btn) {
         btn.addEventListener('click', function () { openSelfie(btn.getAttribute('data-path'), btn.getAttribute('data-nama')); });
       });
+    }
+
+    // --- DATA PENDING ---
+
+    async function loadPending() {
+      var box = $('#pendingContainer');
+      box.innerHTML = '<div class="notice">Memuat data pending&hellip;</div>';
+
+      var res = await window.SBPag.listPendingStudents('pending');
+      if (res.error) {
+        box.innerHTML = '<div class="empty">Gagal memuat data pending: ' + escapeHtml(res.detail || res.error) + '</div>';
+        $('#pendingCount').textContent = '';
+        return;
+      }
+
+      var items = res.items || [];
+      $('#pendingCount').textContent = ' (' + items.length + ')';
+
+      if (items.length === 0) {
+        box.innerHTML = '<div class="empty">Tidak ada data siswa yang menunggu ditinjau.</div>';
+        return;
+      }
+
+      var html = '<table><thead><tr>' +
+        '<th>No</th><th>Nama</th><th>Kelas</th><th>Waktu</th><th>Aksi</th>' +
+        '</tr></thead><tbody>';
+
+      items.forEach(function (p, idx) {
+        var selfieBtn = p.selfie_path
+          ? ' <button class="btn soft btn-small btn-selfie-pending" data-path="' + escapeHtml(p.selfie_path) + '" data-nama="' + escapeHtml(p.nama) + '">&#128247;</button>'
+          : '';
+        html += '<tr>' +
+          '<td>' + (idx + 1) + '</td>' +
+          '<td>' + escapeHtml(p.nama) + selfieBtn + '</td>' +
+          '<td>' + escapeHtml(p.kelas) + '</td>' +
+          '<td>' + escapeHtml(fmtFull(p.created_at)) + '</td>' +
+          '<td style="white-space:nowrap">' +
+            '<button class="btn primary btn-small btn-approve" data-id="' + p.id + '" data-nama="' + escapeHtml(p.nama) + '">&#10003; Setujui</button> ' +
+            '<button class="btn danger btn-small btn-reject" data-id="' + p.id + '" data-nama="' + escapeHtml(p.nama) + '">Abai</button>' +
+          '</td>' +
+          '</tr>';
+      });
+      html += '</tbody></table>';
+      box.innerHTML = html;
+
+      Array.prototype.forEach.call(box.querySelectorAll('.btn-selfie-pending'), function (btn) {
+        btn.addEventListener('click', function () { openSelfie(btn.getAttribute('data-path'), btn.getAttribute('data-nama')); });
+      });
+      Array.prototype.forEach.call(box.querySelectorAll('.btn-approve'), function (btn) {
+        btn.addEventListener('click', function () { approvePending(btn.getAttribute('data-id'), btn.getAttribute('data-nama')); });
+      });
+      Array.prototype.forEach.call(box.querySelectorAll('.btn-reject'), function (btn) {
+        btn.addEventListener('click', function () { rejectPending(btn.getAttribute('data-id'), btn.getAttribute('data-nama')); });
+      });
+    }
+
+    async function approvePending(id, nama) {
+      if (!confirm('Setujui "' + (nama || '') + '" dan masukkan ke daftar siswa resmi?')) return;
+      var res = await window.SBPag.approvePendingStudent(id);
+      if (res.error) { alert('Gagal menyetujui: ' + (res.detail || res.error)); return; }
+      loadPending();
+      initDashboard(); // refresh daftar check-in (label "belum terdaftar" hilang)
+    }
+
+    async function rejectPending(id, nama) {
+      if (!confirm('Abaikan data "' + (nama || '') + '"? Check-in tetap tercatat, hanya tidak dimasukkan ke daftar siswa.')) return;
+      var res = await window.SBPag.rejectPendingStudent(id);
+      if (res.error) { alert('Gagal mengabaikan: ' + (res.detail || res.error)); return; }
+      loadPending();
     }
 
     // 2. Lihat selfie: unduh sebagai blob (hindari ORB dari <img src> cross-origin)
@@ -359,7 +445,7 @@
       $('#selfieError').style.display = 'none';
       $('#selfieLink').style.display = 'none';
       $('#selfieLoading').style.display = 'block';
-      $('#selfieLoading').textContent = 'Memuat selfie ' + (nama || 'siswa') + 'Ã¢â‚¬Â¦';
+      $('#selfieLoading').textContent = 'Memuat selfie ' + (nama || 'siswa') + '&hellip;';
       modalSelfie.classList.add('buka');
 
       var res = await window.SBPag.getSelfieBlob(path);
@@ -369,7 +455,7 @@
         $('#selfieError').style.display = 'block';
         $('#selfieError').textContent =
           'Gagal memuat selfie: ' + (res.detail || res.error || 'tidak diketahui') +
-          ' Ã¢â‚¬â€ pastikan policy storage "Selfie sign selfies" sudah dijalankan (supabase/fix-storage.sql).';
+          ' ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â pastikan policy storage "Selfie sign selfies" sudah dijalankan (supabase/fix-storage.sql).';
         return;
       }
 
@@ -443,6 +529,7 @@
 
     // 5. Reload manual
     $('#btnReload').addEventListener('click', initDashboard);
+    $('#btnReloadPending').addEventListener('click', loadPending);
 
     // Tombol keluar (hapus status PIN)
     $('#btnLogout').addEventListener('click', function () {

@@ -42,8 +42,8 @@
 
 </div>
 
-<script src="../assets/js/supabase-config.js"></script>
-<script src="../assets/js/supabase-client.js"></script>
+<script src="../assets/js/supabase-config.js?v=7"></script>
+<script src="../assets/js/supabase-client.js?v=7"></script>
 <script>
 'use strict';
 (function () {
@@ -79,9 +79,8 @@
       var checkIns = await window.SBPag.getTodayCheckIns();
       if (checkIns && checkIns.length > 0) {
         var first = checkIns[0];
-        var st = first.students;
-        nameEl.textContent = st ? st.nama : 'Siswa';
-        metaEl.textContent = 'Kelas: ' + (st ? (st.kelas || '-') : '-');
+        nameEl.textContent = first.nama || 'Siswa';
+        metaEl.textContent = 'Kelas: ' + (first.kelas || '-');
         tsEl.textContent = formatTs(first.checked_in_at);
       }
     }

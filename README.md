@@ -8,7 +8,7 @@ Program absensi sekolah menggunakan QR permanen + server-side validation.
 |----------|-----------|---------|
 | **Frontend** | HTML / CSS / Vanilla JS (GitHub Pages) | Semua file lama tetap bekerja tanpa perubahan |
 | **Backend** | Supabase (free tier) | Postgres + Storage + API |
-| **Database** | Postgres via Supabase | Tabel: sessions, students, check_ins |
+| **Database** | Postgres via Supabase | Tabel: sessions, students, check_ins, pending_students |
 | **Storage** | Supabase Storage bucket `selfies` | Privat, dilihat admin via signed URL singkat |
 | **Routing** | `/checkin` → status & aksi | QR permanen di gerbang |
 
@@ -17,28 +17,48 @@ Program absensi sekolah menggunakan QR permanen + server-side validation.
 - **QR Fisik Permanent**: URL `/checkin` selalu sama, status dicek dari server
 - **Status AKTIF / NONAKTIF**: Ditentukan server, tidak bisa diubah localStorage
 - **Auto Schedule**: Jam mulai/jam selesai diatur admin di Supabase
-- **Check-in Tanpa NIS**: Pilih nama dari daftar → kelas otomatis dari database → selfie → simpan
+- **Check-in Input Manual**: Siswa mengetik **nama & kelas** sendiri → selfie → simpan
+- **Data Pending**: Data siswa manual masuk ke tabel `pending_students`, ditinjau admin
 - **Siswa Paling Pagi**: Timestamp server terawal hari ini
-- **Dashboard Admin**: Status + daftar check-in + lihat selfie + jumlah hari ini
+- **Dashboard Admin**: Status + daftar check-in + lihat selfie + tinjau data pending
 
-## Alur Scan QR (revisi — tanpa NIS)
+## Alur Scan QR
 
 ```
 QR permanen di gerbang
    ↓
 Cek status sesi (server)  → NONAKTIF? tampilkan "Absensi sedang tidak aktif"
    ↓ AKTIF
-Pilih nama siswa (kotak pencarian dari database, bukan input bebas)
-   ↓
-Kelas otomatis mengikuti data siswa (tidak bisa diketik ulang)
+Isi nama & kelas (siswa mengetik sendiri)
    ↓
 Ambil selfie (kamera browser: preview → ambil → foto ulang / gunakan foto)
    ↓
-Konfirmasi → Simpan check-in (timestamp SERVER)
+Konfirmasi → Simpan check-in (timestamp SERVER) + catat ke data pending
 ```
 
 Identitas yang dipakai hanya: **nama**, **kelas**, **selfie**, **timestamp server**.
 NIS **tidak diminta** dan **tidak pernah dikirim ke frontend**.
+
+## Anti-Duplikat
+
+Karena tidak ada ID unik, duplikat dicek dari **nama + kelas** (abaikan besar/kecil
+huruf dan spasi berlebih) pada hari yang sama. Jika sama, check-in ditolak dengan
+pesan **"Anda sudah melakukan absensi hari ini."**
+
+> **Catatan**: bila siswa salah mengetik nama/kelas (mis. "Eky Sadewa" vs "Eky Sadewaa"),
+> sistem menganggapnya orang berbeda. Untuk mengurangi risiko ini, siswa diarahkan
+> menulis kelas lengkap dengan format seragam (mis. `XI TKJ 2`).
+
+## Data Pending (Nama/Kelas Manual)
+
+Setiap check-in manual dicatat di tabel `pending_students` dengan status `pending`.
+
+- Dashboard admin → kartu **Data Pending** → tombol **Setujui** / **Abai**
+- **Setujui** → baris dipindahkan ke tabel `students` (kolom `nis` diisi otomatis
+  `AUTO-<id>` karena constraint `UNIQUE NOT NULL`; NIS tidak dipakai aplikasi)
+- **Abai** → status jadi `rejected`; check-in tetap tercatat
+- Check-in siswa yang belum disetujui tetap tampil di daftar harian dengan label
+  **"belum terdaftar"**
 
 ## QR Permanen (untuk ditempel di gerbang)
 
@@ -108,39 +128,26 @@ Sertifikat dev disimpan di `.certs/` dan **tidak di-commit** (berisi private key
 5. Edit `assets/js/supabase-config.js` dengan URL + anonKey tersebut
 6. Bucket `selfies` dibuat otomatis oleh script (privat)
 
-## Cara Mengisi Data Siswa (tanpa NIS)
+## Cara Menambah Data Siswa Resmi (opsional)
 
-Aplikasi **tidak memakai NIS**, tetapi tabel `students` memiliki kolom `nis`
-yang `not null unique` (warisan skema lama). Karena itu:
+Alur utama **tidak mewajibkan** data siswa ada di database — siswa mengetik nama &
+kelas sendiri, lalu admin menyetujuinya lewat **Data Pending** di dashboard.
 
-**Cara 1 — Supabase Dashboard (paling mudah)**
+Kalau ingin menambah siswa resmi secara manual (agar `nis`-nya rapi):
 
-1. Buka **Table Editor → students**
-2. **Insert row**, isi:
-   - `nama` = nama siswa (mis. `Eky Sadewa`)
-   - `kelas` = kelas (mis. `XI TKJ 2`)
-   - `nis` = nilai unik apa saja (mis. `S001`, `S002`, …) — tidak dipakai aplikasi, hanya syarat kolom
-   - `aktif` = `true` (biarkan default)
-   - Kolom `jurusan` / `jk` boleh dikosongkan
-3. Ulangi untuk setiap siswa
-
-**Cara 2 — SQL Editor**
+1. Buka **Table Editor → students → Insert row**
+2. Isi `nama`, `kelas`, `nis` (nilai unik apa saja, mis. `S001`), `aktif = true`
+3. Atau lewat SQL:
 
 ```sql
 insert into students (nis, nama, kelas, aktif) values
   ('S001', 'Eky Sadewa',   'XI TKJ 2', true),
-  ('S002', 'Andi Saputra', 'XI TKJ 1', true),
-  ('S003', 'Citra Dewi',   'X TKJ 1',  true)
+  ('S002', 'Andi Saputra', 'XI TKJ 1', true)
 on conflict (nis) do nothing;
 ```
 
-**Cara 3 — Import CSV**
-
-Siapkan CSV dengan kolom `nis,nama,kelas` lalu gunakan
-**Table Editor → Import data from CSV**.
-
-> Siswa dengan `aktif = false` tidak muncul di pencarian nama dan tidak bisa check-in.
-> Gunakan ini untuk menonaktifkan siswa tanpa menghapus datanya.
+> Siswa dengan `aktif = false` tidak dianggap aktif. Untuk siswa hasil penyetujuan
+> pending, `nis` diisi otomatis `AUTO-<id>`.
 
 ## Privasi & Selfie
 
@@ -187,11 +194,14 @@ Dashboard dilindungi **PIN sederhana** (dicek di browser):
 | Fungsi | Kegunaan |
 |--------|----------|
 | `get_session_status()` | Status AKTIF/NONAKTIF + jadwal + waktu server |
-| `find_students(p_q)` | Cari siswa by nama (aktif saja), hasil: id, nama, kelas |
-| `get_student_public(p_id)` | Ambil nama + kelas by id (validasi aktif) |
-| `submit_checkin(p_student_id, p_selfie_path)` | Simpan check-in dengan tanggal/jam SERVER + anti-duplikat |
+| `submit_checkin_manual(p_nama, p_kelas, p_selfie_path)` | Simpan check-in manual (timestamp SERVER + anti-duplikat nama/kelas) |
+| `list_pending_students(p_status)` | Daftar data siswa pending untuk admin |
+| `approve_pending_student(p_id)` | Setujui → masukkan ke tabel `students` |
+| `reject_pending_student(p_id)` | Abaikan data pending |
+| `list_today_checkins()` | Daftar check-in hari ini (siswa terdaftar & manual) |
 | `get_server_date()` | Tanggal hari ini menurut server |
-| `get_selfie_url(p_path)` | Signed URL sementara (60 detik) untuk admin |
+| `find_students(p_q)` / `get_student_public(p_id)` | Utilitas lama (tidak dipakai alur utama) |
+| `submit_checkin(p_student_id, p_selfie_path)` | Alur lama berbasis id (tidak dipakai alur utama) |
 
 ## Maintenance & Tips
 
@@ -203,15 +213,16 @@ Dashboard dilindungi **PIN sederhana** (dicek di browser):
 
 ## Perubahan dari Versi Sebelumnya
 
-1. Alur check-in **tanpa NIS** — memakai pencarian & pilih nama.
-2. `supabase/setup.sql`: tambah kolom `aktif`, 5 fungsi baru, **hapus policy baca selfie publik**.
-3. `assets/js/supabase-client.js`: buang `findStudentByNIS`, tambah `findStudentsByName`,
-   `getStudentPublic`, `getServerDate`, `getSelfieUrl`; `submitCheckIn` kini memakai RPC
-   server-side; ditambah `export default` agar dashboard & halaman sukses tidak error.
-4. `checkin/login.html`: dari input NIS → pencarian & pilih nama.
-5. `checkin/selfie.html` & `checkin/success.html`: pakai id internal, buang blok lokasi,
-   perbaiki bug import module.
-6. `checkin/dashboard.html`: perbaiki import module, kolom NIS → Kelas, tombol **Lihat Selfie**,
-   perbaiki bug pengurutan tanggal.
-7. Geolocation/anti-asrama **dinonaktifkan** dari alur (kolom lokasi tetap ada di DB,
+1. **Input manual**: siswa mengetik nama & kelas sendiri (bukan pilih dari daftar).
+2. **Tabel `pending_students`** + tinjauan admin (Setujui / Abai) di dashboard.
+3. **Anti-duplikat baru**: berdasarkan nama + kelas pada hari yang sama.
+4. `supabase/setup.sql`: kolom `nama_manual`/`kelas_manual`, `student_id` nullable,
+   fungsi `submit_checkin_manual`, `list_pending_students`, `approve_pending_student`,
+   `reject_pending_student`, `list_today_checkins`.
+5. **Perbaikan selfie**: unggah byte biner (bukan teks base64) + toleransi file lama,
+   unduh sebagai blob (hindari ORB), token 1 jam.
+6. `checkin/login.html`: dari dropdown → form input nama + kelas.
+7. `checkin/dashboard.html`: kartu **Data Pending** + label "belum terdaftar".
+8. `checkin/selfie.html` & `success.html`: memakai nama+kelas manual.
+9. Geolocation/anti-asrama tetap **dinonaktifkan** (kolom lokasi tetap ada di DB,
    tidak dipakai). Bisa diaktifkan kembali bila diperlukan.

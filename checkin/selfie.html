@@ -33,8 +33,8 @@
     .preview{position:relative;border-radius:12px;overflow:hidden;background:#f0fdfa;border:1px solid var(--line);margin-top:12px}
     .preview img{width:100%;display:block}
   </style>
-  <script src="../assets/js/supabase-config.js"></script>
-  <script src="../assets/js/supabase-client.js"></script>
+  <script src="../assets/js/supabase-config.js?v=7"></script>
+  <script src="../assets/js/supabase-client.js?v=7"></script>
 </head>
 <body>
 
@@ -92,7 +92,7 @@
     }
     window.SBPag.init();
 
-    // Validasi identitas siswa (harus dipilih dari halaman sebelumnya)
+    // Validasi identitas siswa (nama & kelas dari halaman sebelumnya)
     var stored = sessionStorage.getItem('sbCheckinStudent');
     if (!stored) {
       window.location.href = './login.html';
@@ -104,13 +104,13 @@
       window.location.href = './login.html';
       return;
     }
-    if (!studentData || !studentData.id) {
+    if (!studentData || !studentData.nama || !studentData.kelas) {
       window.location.href = './login.html';
       return;
     }
 
-    // Tampilkan identitas (nama + kelas) — TANPA NIS
-    $('#whoBox').innerHTML = 'Nama: <b>' + escapeHtml(studentData.nama) + '</b> &middot; Kelas: <b>' + escapeHtml(studentData.kelas || '-') + '</b>';
+    // Tampilkan identitas (nama + kelas)
+    $('#whoBox').innerHTML = 'Nama: <b>' + escapeHtml(studentData.nama) + '</b> &middot; Kelas: <b>' + escapeHtml(studentData.kelas) + '</b>';
 
     startCamera();
 
@@ -261,13 +261,13 @@
   async function submitCheckIn() {
     var btn = $('#btnUse');
     btn.disabled = true;
-    btn.textContent = 'Mengirim…';
+    btn.textContent = 'Mengirimâ€¦';
 
     try {
       var selfieDataUrl = $('#previewImg').src;
 
-      // Kirim id internal siswa (bukan NIS). Server mengambil nama & kelas.
-      var result = await window.SBPag.submitCheckIn(studentData.id, selfieDataUrl);
+      // Kirim nama & kelas yang diisi siswa. Server memvalidasi & menyimpan.
+      var result = await window.SBPag.submitCheckInManual(studentData.nama, studentData.kelas, selfieDataUrl);
 
       if (result.error) {
         // Pesan yang lebih ramah untuk kondisi umum
@@ -276,8 +276,10 @@
           msg = 'Anda sudah melakukan absensi hari ini.';
         } else if (result.error === 'ABSENSI_TIDAK_AKTIF') {
           msg = 'Sesi absensi sedang tidak aktif. Silakan cek kembali sesuai jadwal.';
-        } else if (result.error === 'SISWA_TIDAK_DITEMUKAN') {
-          msg = 'Data siswa tidak ditemukan. Silakan pilih nama ulang.';
+        } else if (result.error === 'NAMA_TIDAK_VALID') {
+          msg = 'Nama tidak valid. Silakan isi ulang data siswa.';
+        } else if (result.error === 'KELAS_TIDAK_VALID') {
+          msg = 'Kelas tidak valid. Silakan isi ulang data siswa.';
         }
         alert('Gagal check-in: ' + msg);
         btn.disabled = false;
@@ -285,7 +287,7 @@
         return;
       }
 
-      // Sukses — simpan untuk halaman sukses, bersihkan state sementara
+      // Sukses â€” simpan untuk halaman sukses, bersihkan state sementara
       try {
         sessionStorage.setItem('lastCheckinStudent', JSON.stringify(result.student));
         sessionStorage.setItem('lastCheckinTimestamp', result.timestamp);
