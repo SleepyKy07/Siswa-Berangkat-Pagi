@@ -34,6 +34,8 @@ on conflict (id) do nothing;
 
 -- 2. Fungsi untuk mendapatkan status session (sumber kebenaran server)
 -- Perbaikan: jika schedule NULL, hasil FALSE (bukan NULL) agar konsisten di frontend
+-- `override_reason` ikut dikirim agar bisa ditampilkan sebagai pesan custom
+-- ketika admin menutup sesi (mis. "Absensi diliburkan karena kegiatan").
 create or replace function get_session_status()
 returns jsonb
 language sql
@@ -47,6 +49,7 @@ as $$
       else (localtime >= s.scheduled_starts_at and localtime < s.scheduled_ends_at)
     end,
     'manual_override', s.manual_override,
+    'override_reason', s.override_reason,
     'scheduled_starts_at', to_char(s.scheduled_starts_at, 'HH24:MI'),
     'scheduled_ends_at', to_char(s.scheduled_ends_at, 'HH24:MI'),
     'server_time', to_char(localtimestamp, 'YYYY-MM-DD HH24:MI:SS')

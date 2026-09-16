@@ -16,11 +16,23 @@
     @keyframes spin{to{transform:rotate(360deg)}}
     .loading-text{color:var(--muted);font-size:.9rem;font-weight:600}
 
-    /* Layar NONAKTIF â€” tulisan besar, tanpa tombol/kartu */
+    /* Layar NONAKTIF Ã¢â‚¬â€ tulisan besar, tanpa tombol/kartu */
     .screen{width:100%;max-width:420px}
     .big-icon{font-size:4.5rem;line-height:1;margin-bottom:18px}
     .big-title{font-size:2.1rem;font-weight:800;letter-spacing:-.5px;line-height:1.15;color:var(--danger);margin-bottom:14px}
     .big-sub{font-size:1.02rem;color:var(--text);line-height:1.6;margin-bottom:22px}
+
+    /* Pesan custom dari admin */
+    .custom-reason{
+      background:#fff;border:2px solid #fca5a5;border-left:6px solid var(--danger);
+      border-radius:14px;padding:16px 18px;margin:0 auto 20px;max-width:420px;
+      box-shadow:0 4px 16px rgba(220,38,38,.08);text-align:left;
+    }
+    .custom-reason p{font-size:.95rem;line-height:1.65;color:#7f1d1d;white-space:pre-wrap;word-break:break-word;margin:0}
+    .custom-reason .lbl{
+      font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;
+      color:var(--danger);font-weight:800;margin-bottom:6px;display:block;
+    }
     .divider{height:1px;background:var(--line);max-width:180px;margin:0 auto 18px}
     .schedule-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:700;margin-bottom:6px}
     .schedule-value{font-size:1.5rem;font-weight:800;color:var(--primary-dark);font-variant-numeric:tabular-nums}
@@ -39,9 +51,9 @@
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../assets/js/supabase-config.js?v=11"></script>
-  <script src="../assets/js/supabase-client.js?v=11"></script>
-  <script src="../assets/js/checkin.js?v=11"></script>
+  <script src="../assets/js/supabase-config.js?v=12"></script>
+  <script src="../assets/js/supabase-client.js?v=12"></script>
+  <script src="../assets/js/checkin.js?v=12"></script>
 </head>
 <body>
 
@@ -55,7 +67,14 @@
 <div id="inactiveScreen" class="screen" style="display:none;">
   <div class="big-icon">&#9940;</div>
   <h1 class="big-title">ABSENSI<br>TIDAK AKTIF</h1>
-  <p class="big-sub">Sesi absensi Berangkat Pagi sedang ditutup.</p>
+
+  <!-- Pesan custom dari admin (bila diisi) -->
+  <div id="customReason" class="custom-reason" style="display:none;">
+    <span class="lbl">Keterangan</span>
+    <p id="customReasonText"></p>
+  </div>
+
+  <p class="big-sub" id="defaultSub">Sesi absensi Berangkat Pagi sedang ditutup.</p>
 
   <div id="scheduleWrap" style="display:none;">
     <div class="divider"></div>

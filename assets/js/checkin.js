@@ -35,14 +35,35 @@
 
     var mulai = result && result.scheduled_starts_at;
     var selesai = result && result.scheduled_ends_at;
+    var alasan = result && result.override_reason ? String(result.override_reason).trim() : '';
+    var dinonaktifkanManual = result && result.manual_override === 'NONAKTIF';
 
+    // Pesan custom dari admin (bila diisi)
+    if (alasan) {
+      $('#customReasonText').textContent = alasan;
+      $('#customReason').style.display = 'block';
+    } else {
+      $('#customReason').style.display = 'none';
+    }
+
+    // Baris penjelasan bawaan
+    var sub = $('#defaultSub');
+    if (dinonaktifkanManual) {
+      sub.textContent = alasan
+        ? 'Sesi absensi Berangkat Pagi sedang ditutup.'
+        : 'Sesi absensi dinonaktifkan sementara oleh petugas.';
+    } else {
+      sub.textContent = 'Sesi absensi Berangkat Pagi sedang ditutup.';
+    }
+
+    // Jadwal (hanya bila diisi admin)
     if (mulai && selesai) {
       $('#scheduleValue').textContent = mulai + ' – ' + selesai;
       $('#scheduleWrap').style.display = 'block';
 
       var note = $('#scheduleNote');
-      if (result.manual_override === 'NONAKTIF') {
-        note.textContent = 'Sesi dinonaktifkan sementara oleh petugas. Silakan coba lagi nanti.';
+      if (dinonaktifkanManual) {
+        note.textContent = 'Silakan coba lagi setelah petugas mengaktifkan kembali.';
       } else {
         note.textContent = 'Silakan kembali pada jam tersebut untuk melakukan absensi.';
       }

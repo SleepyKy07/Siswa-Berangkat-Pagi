@@ -237,6 +237,38 @@ Yang terhapus: baris `check_ins`, `pending_students` yang sudah ditinjau
 - Perlu konfirmasi dengan mengetik `HAPUS` (tidak bisa dibatalkan).
 - Jika sebagian file selfie gagal dihapus, data tetap terhapus dan jumlah kegagalan dilaporkan.
 
+## Menutup Sesi dengan Pesan Custom
+
+Saat menutup absensi, admin bisa menulis **pesan khusus** yang muncul di HP siswa:
+
+1. Dashboard admin → **Nonaktifkan Absensi**
+2. Tulis **"Pesan untuk siswa"** (opsional, maks. 300 karakter), mis.
+   > Absensi diliburkan karena class meeting. Dibuka kembali besok pagi.
+3. Simpan
+
+Di HP siswa (saat scan / buka halaman absensi) yang tampil:
+
+```
+              ⛔
+      ABSENSI TIDAK AKTIF
+
+   ┌─ KETERANGAN ─────────────┐
+   │ Absensi diliburkan karena │
+   │ class meeting. Dibuka     │
+   │ kembali besok pagi.       │
+   └───────────────────────────┘
+
+   Sesi absensi Berangkat Pagi sedang ditutup.
+   ─────────────────────────
+   Jadwal Absensi: 06:00 – 07:00
+```
+
+Bila pesan **dikosongkan**, siswa melihat pesan bawaan:
+*"Sesi absensi dinonaktifkan sementara oleh petugas."*
+
+Pesan disimpan di kolom `sessions.override_reason` dan dikirim lewat
+`get_session_status()` sebagai `override_reason`.
+
 ## Fungsi Server (dijalankan oleh `supabase/setup.sql`)
 
 | Fungsi | Kegunaan |

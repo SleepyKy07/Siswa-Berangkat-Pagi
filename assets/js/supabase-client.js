@@ -197,12 +197,21 @@ var SBPag = (function () {
   // --- SESSION ADMIN OVERRIDES ---
 
   /** Admin: nonaktifkan sesi absensi (override manual). */
+  /**
+   * Admin: nonaktifkan sesi absensi (override manual).
+   * @param {string|null} [reason] - pesan custom untuk siswa (boleh kosong)
+   */
   async function setSessionInactive(reason) {
     if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
     try {
+      var pesan = reason == null ? null : String(reason).trim();
       var res = await window.__sb
         .from('sessions')
-        .update({ manual_override: 'NONAKTIF', override_reason: reason, updated_at: new Date() })
+        .update({
+          manual_override: 'NONAKTIF',
+          override_reason: pesan ? pesan : null,
+          updated_at: new Date()
+        })
         .eq('id', 1);
       if (res.error) return { error: 'GAGAL_NONAKTIFKAN', detail: res.error.message };
       return { success: true, data: res.data };
@@ -212,13 +221,21 @@ var SBPag = (function () {
     }
   }
 
-  /** Admin: aktifkan sesi absensi (override manual). */
+  /**
+   * Admin: aktifkan sesi absensi (override manual).
+   * @param {string|null} [reason] - catatan internal (tidak ditampilkan ke siswa)
+   */
   async function setSessionActive(reason) {
     if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
     try {
+      var catatan = reason == null ? null : String(reason).trim();
       var res = await window.__sb
         .from('sessions')
-        .update({ manual_override: 'AKTIF', override_reason: reason, updated_at: new Date() })
+        .update({
+          manual_override: 'AKTIF',
+          override_reason: catatan ? catatan : null,
+          updated_at: new Date()
+        })
         .eq('id', 1);
       if (res.error) return { error: 'GAGAL_AKTIFKAN', detail: res.error.message };
       return { success: true, data: res.data };
