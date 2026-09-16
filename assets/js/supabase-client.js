@@ -401,12 +401,20 @@ var SBPag = (function () {
   /**
    * Buat signed URL sementara untuk melihat selfie (bucket tetap privat).
    * Memakai Storage API (createSignedUrl), BUKAN fungsi SQL.
+   *
+   * PENTING: createSignedUrl mengembalikan path RELATIF seperti
+   *   "/object/sign/selfies/...?token=..."
+   * yang harus diawali endpoint Storage Supabase. Tanpa awalan itu, browser
+   * akan meminta ke domain halaman sendiri (mis. github.io) dan gagal 404.
+   * Fungsi ini mengembalikan URL ABSOLUT yang siap dipasang ke <img src>.
+   *
    * Syarat: ada policy SELECT pada storage.objects untuk bucket 'selfies'
    * (lihat bagian 6 di supabase/setup.sql).
    * @param {string} path - selfie_path
+   * @param {number} [expires] - masa berlaku (detik), default 300
    * @returns {Promise<Object>} { url } | { error, detail }
    */
-  async function getSelfieUrl(path) {
+  async function getSelfieUrl(path, expires) {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
     if (!path || String(path).trim() === '') {
@@ -414,10 +422,11 @@ var SBPag = (function () {
     }
 
     try {
+      var ttl = expires || 300;
       var res = await window.__sb
         .storage
         .from('selfies')
-        .createSignedUrl(path, 60);
+        .createSignedUrl(path, ttl);
 
       if (res.error) {
         console.error('[SB] createSignedUrl error:', res.error);
@@ -426,7 +435,16 @@ var SBPag = (function () {
       if (!res.data || !res.data.signedUrl) {
         return { error: 'GAGAL_BUAT_URL', detail: 'signedUrl kosong' };
       }
-      return { url: res.data.signedUrl };
+
+      var signed = res.data.signedUrl;
+
+      // Jadikan URL absolut bila masih relatif
+      if (signed.indexOf('http') !== 0) {
+        var base = String(cfg.url || '').replace(/\/+$/, '');
+        signed = base + '/storage/v1' + (signed.charAt(0) === '/' ? signed : '/' + signed);
+      }
+
+      return { url: signed };
     } catch (err) {
       console.error('[SB] getSelfieUrl exception:', err);
       return { error: 'EXCEPTION', detail: err.message };

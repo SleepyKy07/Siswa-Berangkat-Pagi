@@ -140,6 +140,7 @@
     <div id="selfieLoading">Membuat tautan sementara&hellip;</div>
     <img id="selfieImg" class="selfie-img" style="display:none" alt="Selfie siswa">
     <p class="small" id="selfieError" style="margin-top:10px;display:none;"></p>
+    <a id="selfieLink" class="btn soft btn-small" style="display:none;text-decoration:none;margin-top:10px;" target="_blank" rel="noopener" href="#">Buka gambar di tab baru</a>
   </div>
 </div>
 
@@ -334,8 +335,11 @@
 
     // 2. Lihat selfie via signed URL sementara
     async function openSelfie(path, nama) {
-      $('#selfieImg').style.display = 'none';
+      var img = $('#selfieImg');
+      img.style.display = 'none';
+      img.removeAttribute('src');
       $('#selfieError').style.display = 'none';
+      $('#selfieLink').style.display = 'none';
       $('#selfieLoading').style.display = 'block';
       $('#selfieLoading').textContent = 'Membuat tautan sementara untuk ' + (nama || 'siswa') + '…';
       modalSelfie.classList.add('buka');
@@ -345,16 +349,34 @@
 
       if (res.error || !res.url) {
         $('#selfieError').style.display = 'block';
-        $('#selfieError').textContent = 'Gagal membuka selfie: ' + (res.detail || res.error || 'tidak diketahui');
+        $('#selfieError').textContent =
+          'Gagal membuka selfie: ' + (res.detail || res.error || 'tidak diketahui') +
+          ' — pastikan policy storage "Selfie sign selfies" sudah dijalankan (supabase/fix-storage.sql).';
         return;
       }
-      $('#selfieImg').src = res.url;
-      $('#selfieImg').style.display = 'block';
+
+      // Tampilkan; tangani kalau URL gagal dimuat (token kedaluwarsa dll)
+      img.onload = function () {
+        img.style.display = 'block';
+        $('#selfieLink').href = res.url;
+        $('#selfieLink').style.display = 'inline-block';
+      };
+      img.onerror = function () {
+        img.style.display = 'none';
+        $('#selfieError').style.display = 'block';
+        $('#selfieError').innerHTML =
+          'Gambar gagal dimuat (tautan mungkin kedaluwarsa). ' +
+          '<a href="' + res.url + '" target="_blank" rel="noopener" style="color:var(--primary-dark);text-decoration:underline">Buka di tab baru</a>.';
+      };
+      img.src = res.url;
     }
 
     function closeSelfie() {
       modalSelfie.classList.remove('buka');
-      $('#selfieImg').src = '';
+      var img = $('#selfieImg');
+      img.onload = null;
+      img.onerror = null;
+      img.removeAttribute('src');
     }
 
     // 3. Toggle sesi
