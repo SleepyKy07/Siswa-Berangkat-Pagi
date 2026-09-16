@@ -189,19 +189,22 @@ Dashboard dilindungi **PIN sederhana** (dicek di browser):
   sebagai **"Siswa Paling Pagi"** — ditampilkan di kartu khusus dashboard dan
   label pada baris pertama tabel.
 
-## Hapus Riwayat (Admin)
+## Hapus Data (Admin)
 
 Dashboard admin → kartu **Hapus Riwayat**:
 
-- **Cek Jumlah** — menghitung berapa data yang akan terhapus sebelum eksekusi.
-- **Hapus Sebelum Tanggal** — hapus riwayat sebelum tanggal tertentu.
-- **Hapus SEMUA Riwayat** — hapus semua riwayat (semua hari kecuali hari ini).
+| Tombol | Yang dihapus |
+|---|---|
+| 🔍 **Cek Jumlah** | Menghitung dulu berapa data yang akan terhapus |
+| 🗑 **Hapus Sebelum Tanggal** | Data sebelum tanggal yang dipilih |
+| 🗑 **Hapus Hari Ini** | Semua check-in **hari ini** |
+| ⚠ **Hapus Semua Riwayat** | Semua hari **kecuali hari ini** |
+| ⚠️ **Hapus SEMUA (termasuk hari ini)** | **Seluruh** data check-in |
 
-Yang terhapus: baris `check_ins` (riwayat, **bukan hari ini**), `pending_students`
-yang sudah ditinjau (`approved`/`rejected`), dan **file selfie** di Storage.
+Yang terhapus: baris `check_ins`, `pending_students` yang sudah ditinjau
+(`approved`/`rejected`), dan **file selfie** di Storage.
 
 - Perlu konfirmasi dengan mengetik `HAPUS` (tidak bisa dibatalkan).
-- Data hari ini **selalu** dipertahankan.
 - Jika sebagian file selfie gagal dihapus, data tetap terhapus dan jumlah kegagalan dilaporkan.
 
 ## Fungsi Server (dijalankan oleh `supabase/setup.sql`)
@@ -216,7 +219,10 @@ yang sudah ditinjau (`approved`/`rejected`), dan **file selfie** di Storage.
 | `list_today_checkins()` | Daftar check-in hari ini (siswa terdaftar & manual) |
 | `collect_selfie_paths(p_mode, p_before_date)` | Kumpulkan path selfie yang akan dihapus |
 | `count_history_to_delete(p_mode, p_before_date)` | Hitung jumlah data yang akan dihapus |
-| `delete_checkin_history(p_mode, p_before_date)` | Hapus riwayat check-in + pending yang ditinjau |
+| `delete_checkin_history(p_mode, p_before_date)` | Hapus data check-in + pending yang ditinjau |
+
+Mode untuk ketiga fungsi di atas: `before` (sebelum tanggal), `today` (hari ini),
+`all_before` (semua riwayat), `all` (semua termasuk hari ini).
 | `get_server_date()` | Tanggal hari ini menurut server |
 | `find_students(p_q)` / `get_student_public(p_id)` | Utilitas lama (tidak dipakai alur utama) |
 | `submit_checkin(p_student_id, p_selfie_path)` | Alur lama berbasis id (tidak dipakai alur utama) |

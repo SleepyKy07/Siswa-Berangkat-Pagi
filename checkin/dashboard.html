@@ -67,7 +67,7 @@
       </div>
     </div>
     <p class="small">Data diperbarui otomatis dari server. Waktu memakai jam server, bukan jam device siswa.
-      <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:99px;background:#e6f6f3;color:var(--primary-dark);font-weight:700;font-size:.7rem;">versi 8</span>
+      <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:99px;background:#e6f6f3;color:var(--primary-dark);font-weight:700;font-size:.7rem;">versi 9</span>
     </p>
   </div>
 
@@ -131,14 +131,13 @@
       <h2>&#128465;&#65039; Hapus Riwayat</h2>
     </div>
     <p class="small" style="margin-bottom:10px">
-      Menghapus <b>riwayat check-in</b> (semua hari <b>kecuali hari ini</b>) dan
-      <b>data pending yang sudah ditinjau</b>, termasuk <b>file selfienya</b>.
-      Tindakan ini <b>tidak bisa dibatalkan</b>.
+      Menghapus data <b>check-in</b> dan <b>data pending yang sudah ditinjau</b>,
+      termasuk <b>file selfienya</b>. Tindakan ini <b>tidak bisa dibatalkan</b>.
     </p>
 
     <div style="display:grid;gap:12px;margin-bottom:12px">
       <label style="display:grid;gap:6px;font-size:.77rem;font-weight:700;color:var(--muted)">
-        Hapus riwayat <b>sebelum tanggal</b>
+        Hapus data <b>sebelum tanggal</b>
         <input type="date" id="historyBeforeDate" style="border:1.5px solid var(--line);border-radius:12px;padding:10px;font:inherit;background:#fff">
       </label>
       <div class="action-row" style="margin:0">
@@ -148,7 +147,11 @@
     </div>
 
     <div class="action-row" style="margin:0;border-top:1px dashed var(--line);padding-top:12px">
-      <button class="btn danger" id="btnDeleteAll">&#9888; Hapus SEMUA Riwayat</button>
+      <button class="btn danger" id="btnDeleteToday">&#128465; Hapus Hari Ini</button>
+      <button class="btn danger" id="btnDeleteAllBefore">&#9888; Hapus Semua Riwayat</button>
+    </div>
+    <div class="action-row" style="margin:8px 0 0">
+      <button class="btn danger" id="btnDeleteAll" style="background:#991b1b">&#9888;&#65039; Hapus SEMUA (termasuk hari ini)</button>
     </div>
 
     <div id="historyInfo" class="notice" style="display:none;margin-top:12px"></div>
@@ -205,8 +208,8 @@
   </div>
 </div>
 
-<script src="../assets/js/supabase-config.js?v=8"></script>
-<script src="../assets/js/supabase-client.js?v=8"></script>
+<script src="../assets/js/supabase-config.js?v=9"></script>
+<script src="../assets/js/supabase-client.js?v=9"></script>
 <script>
 'use strict';
 (function () {
@@ -483,7 +486,7 @@
         $('#selfieError').style.display = 'block';
         $('#selfieError').textContent =
           'Gagal memuat selfie: ' + (res.detail || res.error || 'tidak diketahui') +
-          ' ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â pastikan policy storage "Selfie sign selfies" sudah dijalankan (supabase/fix-storage.sql).';
+          ' ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â pastikan policy storage "Selfie sign selfies" sudah dijalankan (supabase/fix-storage.sql).';
         return;
       }
 
@@ -532,27 +535,32 @@
     }
 
     async function checkHistory() {
-      var mode = $('#historyBeforeDate').value ? 'date' : 'all';
       var dateVal = $('#historyBeforeDate').value;
 
-      if (mode === 'date') {
-        var today = new Date().toISOString().slice(0, 10);
-        if (dateVal > today) {
+      if (dateVal) {
+        var today0 = new Date().toISOString().slice(0, 10);
+        if (dateVal > today0) {
           historyInfo('Tanggal tidak boleh melebihi hari ini.', true);
           return;
         }
       }
 
-      var res = await window.SBPag.countHistoryToDelete(mode, dateVal);
-      if (res.error) { historyInfo('Gagal menghitung: ' + escapeHtml(res.detail || res.error), true); return; }
+      // Ambil tiga angka: sebelum tanggal (bila diisi), hari ini, dan semua riwayat
+      var rows = [];
+      if (dateVal) {
+        var r1 = await window.SBPag.countHistoryToDelete('before', dateVal);
+        if (r1.error) { historyInfo('Gagal menghitung: ' + escapeHtml(r1.detail || r1.error), true); return; }
+        rows.push('<b>Sebelum ' + escapeHtml(dateVal) + '</b>: ' +
+          (r1.data.checkins || 0) + ' check-in, ' + (r1.data.pending || 0) + ' pending');
+      }
+      var r2 = await window.SBPag.countHistoryToDelete('today');
+      var r3 = await window.SBPag.countHistoryToDelete('all_before');
+      if (r2.error || r3.error) { historyInfo('Gagal menghitung.', true); return; }
+      rows.push('<b>Hari ini</b>: ' + (r2.data.checkins || 0) + ' check-in, ' + (r2.data.pending || 0) + ' pending');
+      rows.push('<b>Semua riwayat</b> (sebelum hari ini): ' + (r3.data.checkins || 0) + ' check-in, ' + (r3.data.pending || 0) + ' pending');
 
-      var d = res.data || {};
-      historyInfo(
-        'Akan terhapus: <b>' + (d.checkins || 0) + '</b> data check-in dan <b>' +
-        (d.pending || 0) + '</b> data pending' +
-        (mode === 'date' ? ' (sebelum ' + escapeHtml(dateVal) + ')' : ' (semua riwayat)') +
-        '. Data hari ini tidak dihapus.'
-      );
+      historyInfo('Jumlah data yang akan terhapus &mdash; ' + rows.join(' &middot; ') +
+        '. Data pending yang dihitung hanya yang sudah ditinjau (disetujui/diabaikan).');
     }
 
     async function doDelete(mode, dateVal, label) {
@@ -563,7 +571,7 @@
       );
       if (konfirmasi === null) return;
       if (konfirmasi.trim().toUpperCase() !== 'HAPUS') {
-        historyInfo('Dibatalkan â€” kata konfirmasi tidak cocok.', true);
+        historyInfo('Dibatalkan Ã¢â‚¬â€ kata konfirmasi tidak cocok.', true);
         return;
       }
 
@@ -640,10 +648,16 @@
         historyInfo('Tanggal tidak boleh melebihi hari ini.', true);
         return;
       }
-      doDelete('date', dateVal, 'riwayat sebelum ' + dateVal);
+      doDelete('before', dateVal, 'data sebelum ' + dateVal);
+    });
+    $('#btnDeleteToday').addEventListener('click', function () {
+      doDelete('today', null, 'SEMUA check-in HARI INI');
+    });
+    $('#btnDeleteAllBefore').addEventListener('click', function () {
+      doDelete('all_before', null, 'SEMUA riwayat (semua hari kecuali hari ini)');
     });
     $('#btnDeleteAll').addEventListener('click', function () {
-      doDelete('all', null, 'SEMUA riwayat (semua hari kecuali hari ini)');
+      doDelete('all', null, 'SEMUA data (termasuk check-in HARI INI)');
     });
 
     // Tombol keluar (hapus status PIN)

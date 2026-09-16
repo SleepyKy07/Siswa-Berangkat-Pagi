@@ -554,15 +554,15 @@ var SBPag = (function () {
 
   /**
    * Hitung berapa data yang akan terhapus (untuk konfirmasi admin).
-   * @param {'all'|'date'} mode
-   * @param {string} [beforeDate] - 'YYYY-MM-DD' (wajib bila mode='date')
+   * @param {'before'|'today'|'all_before'|'all'} mode
+   * @param {string} [beforeDate] - 'YYYY-MM-DD' (wajib bila mode='before')
    */
   async function countHistoryToDelete(mode, beforeDate) {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
     try {
       var res = await window.__sb.rpc('count_history_to_delete', {
         p_mode: mode,
-        p_before_date: mode === 'date' ? (beforeDate || null) : null
+        p_before_date: mode === 'before' ? (beforeDate || null) : null
       });
       if (res.error) return { error: 'GAGAL_HITUNG', detail: res.error.message };
       return { data: res.data || {}, error: null };
@@ -573,17 +573,21 @@ var SBPag = (function () {
   }
 
   /**
-   * Hapus riwayat check-in (bukan hari ini) + data pending yang sudah ditinjau.
+   * Hapus riwayat check-in + data pending yang sudah ditinjau.
    * File selfie di Storage ikut dihapus (diambil sebelum baris DB dihapus).
    *
-   * @param {'all'|'date'} mode
-   * @param {string} [beforeDate] - 'YYYY-MM-DD' (wajib bila mode='date')
+   * @param {'before'|'today'|'all_before'|'all'} mode
+   *   'before'     -> sebelum tanggal tertentu
+   *   'today'      -> hari ini saja
+   *   'all_before' -> semua riwayat (sebelum hari ini)
+   *   'all'        -> SEMUA (termasuk hari ini)
+   * @param {string} [beforeDate] - 'YYYY-MM-DD' (wajib bila mode='before')
    * @returns {Promise<Object>} { success, checkinsDeleted, pendingDeleted, selfiesDeleted, selfieErrors }
    */
   async function deleteHistory(mode, beforeDate) {
     if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
 
-    if (mode === 'date' && !beforeDate) {
+    if (mode === 'before' && !beforeDate) {
       return { error: 'TANGGAL_WAJIB_DIISI' };
     }
 
@@ -595,7 +599,7 @@ var SBPag = (function () {
       // 1. Kumpulkan path selfie SEBELUM baris database dihapus
       var gp = await window.__sb.rpc('collect_selfie_paths', {
         p_mode: mode,
-        p_before_date: mode === 'date' ? beforeDate : null
+        p_before_date: mode === 'before' ? beforeDate : null
       });
       if (gp.error) {
         return { error: 'GAGAL_AMBIL_SELFIE', detail: gp.error.message };
@@ -605,7 +609,7 @@ var SBPag = (function () {
       // 2. Hapus baris database (check_ins + pending yang ditinjau)
       var del = await window.__sb.rpc('delete_checkin_history', {
         p_mode: mode,
-        p_before_date: mode === 'date' ? beforeDate : null
+        p_before_date: mode === 'before' ? beforeDate : null
       });
       if (del.error) return { error: 'GAGAL_HAPUS', detail: del.error.message };
       var d = del.data || {};
