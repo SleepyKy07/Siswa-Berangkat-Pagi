@@ -161,8 +161,8 @@
   </div>
 </div>
 
-<script src="../assets/js/supabase-config.js?v=3"></script>
-<script src="../assets/js/supabase-client.js?v=3"></script>
+<script src="../assets/js/supabase-config.js?v=4"></script>
+<script src="../assets/js/supabase-client.js?v=4"></script>
 <script>
 'use strict';
 (function () {
@@ -333,42 +333,56 @@
       });
     }
 
-    // 2. Lihat selfie via signed URL sementara
+    // 2. Lihat selfie: unduh sebagai blob (hindari ORB dari <img src> cross-origin)
+    var currentBlobUrl = null;
+
     async function openSelfie(path, nama) {
       var img = $('#selfieImg');
+      revokeCurrentBlob();
+
       img.style.display = 'none';
       img.removeAttribute('src');
+      img.onload = null;
+      img.onerror = null;
       $('#selfieError').style.display = 'none';
       $('#selfieLink').style.display = 'none';
       $('#selfieLoading').style.display = 'block';
-      $('#selfieLoading').textContent = 'Membuat tautan sementara untuk ' + (nama || 'siswa') + '…';
+      $('#selfieLoading').textContent = 'Memuat selfie ' + (nama || 'siswa') + '…';
       modalSelfie.classList.add('buka');
 
-      var res = await window.SBPag.getSelfieUrl(path);
+      var res = await window.SBPag.getSelfieBlob(path);
       $('#selfieLoading').style.display = 'none';
 
-      if (res.error || !res.url) {
+      if (res.error || !res.blobUrl) {
         $('#selfieError').style.display = 'block';
         $('#selfieError').textContent =
-          'Gagal membuka selfie: ' + (res.detail || res.error || 'tidak diketahui') +
+          'Gagal memuat selfie: ' + (res.detail || res.error || 'tidak diketahui') +
           ' — pastikan policy storage "Selfie sign selfies" sudah dijalankan (supabase/fix-storage.sql).';
         return;
       }
 
-      // Tampilkan; tangani kalau URL gagal dimuat (token kedaluwarsa dll)
+      currentBlobUrl = res.blobUrl;
       img.onload = function () {
         img.style.display = 'block';
-        $('#selfieLink').href = res.url;
-        $('#selfieLink').style.display = 'inline-block';
+        // Simpan URL asli untuk tombol "buka di tab baru"
+        if (res.url) {
+          $('#selfieLink').href = res.url;
+          $('#selfieLink').style.display = 'inline-block';
+        }
       };
       img.onerror = function () {
         img.style.display = 'none';
         $('#selfieError').style.display = 'block';
-        $('#selfieError').innerHTML =
-          'Gambar gagal dimuat (tautan mungkin kedaluwarsa). ' +
-          '<a href="' + res.url + '" target="_blank" rel="noopener" style="color:var(--primary-dark);text-decoration:underline">Buka di tab baru</a>.';
+        $('#selfieError').textContent = 'Gambar terunduh tetapi gagal ditampilkan.';
       };
-      img.src = res.url;
+      img.src = res.blobUrl;
+    }
+
+    function revokeCurrentBlob() {
+      if (currentBlobUrl) {
+        try { window.SBPag.revokeSelfieBlob(currentBlobUrl); } catch (e) { /* ignore */ }
+        currentBlobUrl = null;
+      }
     }
 
     function closeSelfie() {
@@ -377,6 +391,7 @@
       img.onload = null;
       img.onerror = null;
       img.removeAttribute('src');
+      revokeCurrentBlob();
     }
 
     // 3. Toggle sesi

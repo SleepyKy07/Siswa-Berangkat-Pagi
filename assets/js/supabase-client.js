@@ -451,6 +451,67 @@ var SBPag = (function () {
     }
   }
 
+  /**
+   * Ambil selfie sebagai BLOB dan kembalikan blob URL siap dipakai di <img>.
+   *
+   * Kenapa tidak cukup <img src="signedUrl"> ?
+   * Cloudflare menyetel cookie `__cf_bm` (SameSite=None) pada respons file.
+   * Browser memuat <img> cross-origin dalam mode `no-cors`, dan respons yang
+   * menyetel cookie seperti itu ditolak oleh ORB (Opaque Response Blocking):
+   *   "A resource is blocked by OpaqueResponseBlocking".
+   *
+   * Solusinya: unduh memakai Storage API (permintaan CORS resmi via supabase-js),
+   * ubah ke blob, lalu tampilkan lewat URL.createObjectURL(). Objek di URL
+   * tersebut bisa dicabut kembali dengan revokeSelfieBlob().
+   *
+   * @param {string} path - selfie_path
+   * @param {number} [expires] - masa berlaku signed URL (detik)
+   * @returns {Promise<Object>} { blobUrl } | { error, detail }
+   */
+  async function getSelfieBlob(path, expires) {
+    if (!init()) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    if (!path || String(path).trim() === '') return { error: 'PATH_KOSONG' };
+
+    try {
+      var ttl = expires || 3600;
+      // 1. Buat signed URL
+      var sg = await window.__sb.storage.from('selfies').createSignedUrl(path, ttl);
+      if (sg.error || !sg.data || !sg.data.signedUrl) {
+        return { error: 'GAGAL_BUAT_URL', detail: (sg.error && sg.error.message) || 'signedUrl kosong' };
+      }
+
+      var signed = sg.data.signedUrl;
+      if (signed.indexOf('http') !== 0) {
+        var base = String(cfg.url || '').replace(/\/+$/, '');
+        signed = base + '/storage/v1' + (signed.charAt(0) === '/' ? signed : '/' + signed);
+      }
+
+      // 2. Unduh sebagai blob (mode CORS biasa, bukan no-cors)
+      var resp = await fetch(signed, { mode: 'cors', credentials: 'omit', cache: 'no-store' });
+      if (!resp.ok) {
+        return { error: 'GAGAL_UNDUH_SELFIE', detail: 'HTTP ' + resp.status };
+      }
+      var blob = await resp.blob();
+
+      // Pastikan memang gambar
+      if (blob.type && blob.type.indexOf('image') !== 0 && blob.type.indexOf('octet-stream') === -1) {
+        return { error: 'BUKAN_GAMBAR', detail: blob.type };
+      }
+
+      return { blobUrl: URL.createObjectURL(blob), size: blob.size, type: blob.type, url: signed };
+    } catch (err) {
+      console.error('[SB] getSelfieBlob exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  // Cabut blob URL agar memori tidak menumpuk
+  function revokeSelfieBlob(blobUrl) {
+    try {
+      if (blobUrl && blobUrl.indexOf('blob:') === 0) URL.revokeObjectURL(blobUrl);
+    } catch (e) { /* ignore */ }
+  }
+
   // --- EXPORTS ---
 
   var api = {
@@ -466,7 +527,9 @@ var SBPag = (function () {
     submitCheckIn: submitCheckIn,
     getTodayCheckIns: getTodayCheckIns,
     getEarliestCheckInToday: getEarliestCheckInToday,
-    getSelfieUrl: getSelfieUrl
+    getSelfieUrl: getSelfieUrl,
+    getSelfieBlob: getSelfieBlob,
+    revokeSelfieBlob: revokeSelfieBlob
   };
 
   // Daftarkan sebagai global (untuk <script> biasa)
