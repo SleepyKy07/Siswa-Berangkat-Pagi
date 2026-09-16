@@ -98,14 +98,19 @@ Keduanya mengarah ke URL permanen:
 https://sleepyky07.github.io/Siswa-Berangkat-Pagi/checkin/
 ```
 
+### Halaman khusus menampilkan QR
+
+Buka **`checkin/qr.html`** untuk menampilkan QR besar di layar (laptop/tablet/TV):
+
+- Tombol **Layar Penuh** — hanya QR yang tampil, cocok ditaruh di gerbang/lobi
+- Tombol **Cetak QR** — langsung bikin versi siap cetak (tombol & teks otomatis disembunyikan)
+- Bisa juga dibuka dari dashboard admin: tombol **Tampilkan QR Absensi**
+
 Cara pakai:
 
-1. Cetak `qr-checkin-bw.png` (ukuran disarankan minimal 10×10 cm agar mudah discan).
-2. Tempel di gerbang/pintu masuk sekolah.
-3. QR **tidak perlu diganti** setiap hari — status AKTIF/NONAKTIF dicek dari server
-   setiap kali discan.
-4. Halaman `/checkin/` juga menampilkan QR ini, jadi siswa bisa memindainya
-   langsung dari layar bila perlu.
+1. **Cetak** `qr-checkin-bw.png` (minimal 10×10 cm) untuk ditempel di gerbang, **atau**
+2. Buka `checkin/qr.html` di layar lalu aktifkan Layar Penuh
+3. QR **tidak perlu diganti** setiap hari — status dicek server saat discan
 
 **Jika domain berubah** (mis. pindah host), QR harus dibuat ulang. Cara membuat ulang:
 

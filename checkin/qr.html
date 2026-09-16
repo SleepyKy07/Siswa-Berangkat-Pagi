@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tampilkan QR Absensi</title>
+  <meta name="theme-color" content="#0f766e">
+  <style>
+    :root{--primary:#0f766e;--primary-dark:#115e59;--bg:#f0fdfa;--text:#173b3a;--muted:#64807e;--line:#d8ebe8}
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{height:100%}
+    body{
+      font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+      background:linear-gradient(145deg,#ecfeff,var(--bg));
+      color:var(--text);
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:24px;text-align:center;gap:18px;
+    }
+
+    .brand{display:flex;align-items:center;justify-content:center;gap:12px}
+    .brand img{height:44px;width:44px;object-fit:contain;border-radius:10px;background:#fff;padding:3px}
+    .brand-text{text-align:left}
+    .brand-text .school{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700}
+    .brand-text .title{font-size:1.05rem;font-weight:800;color:var(--primary-dark)}
+
+    .qr-card{
+      background:#fff;border:3px solid var(--primary);border-radius:24px;
+      padding:clamp(16px,3vw,32px);
+      box-shadow:0 12px 40px rgba(15,118,110,.14);
+      width:100%;max-width:min(78vh,560px);
+    }
+    .qr-card img{width:100%;height:auto;display:block;border-radius:12px}
+
+    .headline{font-size:clamp(1.3rem,3.5vw,2rem);font-weight:800;color:var(--primary-dark);letter-spacing:-.4px}
+    .sub{font-size:clamp(.85rem,1.8vw,1.05rem);color:var(--muted);max-width:34rem;line-height:1.5}
+
+    .url-box{
+      font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+      font-size:clamp(.65rem,1.4vw,.82rem);color:var(--primary-dark);
+      background:#fff;border:1px solid var(--line);border-radius:10px;
+      padding:8px 14px;word-break:break-all;max-width:34rem;
+    }
+
+    .actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+    .btn{
+      border:0;border-radius:12px;padding:12px 20px;min-height:44px;
+      font:700 .82rem inherit;cursor:pointer;text-decoration:none;
+      display:inline-flex;align-items:center;gap:7px;transition:.18s;
+    }
+    .btn.primary{background:var(--primary);color:#fff}
+    .btn.primary:hover{background:var(--primary-dark)}
+    .btn.soft{background:#e6f6f3;color:var(--primary-dark)}
+
+    /* Mode layar penuh: sembunyikan elemen pengganggu */
+    .zen .brand,.zen .headline,.zen .sub,.zen .url-box,.zen .actions{display:none}
+    .zen .qr-card{border-width:5px;max-width:min(88vh,760px)}
+
+    .hint{font-size:.72rem;color:var(--muted)}
+
+    @media print{
+      body{background:#fff;padding:0;gap:10px}
+      .qr-card{border-color:#000;box-shadow:none}
+      .actions,.hint,.url-box{display:none}
+    }
+  </style>
+</head>
+<body>
+
+  <div class="brand">
+    <img src="../assets/images/logo-sekolah.png" alt="Logo sekolah" onerror="this.style.display='none'">
+    <div class="brand-text">
+      <div class="school">SMK AL HIKMAH KAlIREJO</div>
+      <div class="title">Absensi Siswa Berangkat Pagi</div>
+    </div>
+    <img src="../assets/images/logo-osis.png" alt="Logo OSIS" onerror="this.style.display='none'">
+  </div>
+
+  <div class="headline">Scan untuk Absensi</div>
+  <div class="sub" id="statusLine">Arahkan kamera HP ke QR di bawah ini.</div>
+
+  <div class="qr-card" id="qrCard">
+    <img src="../assets/images/qr-checkin-bw.png" alt="QR Code Absensi Siswa Berangkat Pagi"
+         onerror="this.onerror=null;this.src='../assets/images/qr-checkin.png'">
+  </div>
+
+  <div class="url-box" id="urlBox">-</div>
+
+  <div class="actions">
+    <button class="btn primary" id="btnZen">&#9974; Layar Penuh</button>
+    <button class="btn soft" id="btnPrint">&#128424; Cetak QR</button>
+    <a class="btn soft" href="./index.html">&#8592; Buka Halaman Absensi</a>
+  </div>
+
+  <p class="hint">QR ini permanen &mdash; tidak perlu diganti setiap hari. Status AKTIF/NONAKTIF dicek server saat discan.</p>
+
+<script>
+'use strict';
+(function () {
+  function $(s) { return document.querySelector(s); }
+  var fullUrl = new URL('./', window.location.href).href;
+  $('#urlBox').textContent = fullUrl;
+
+  // Mode layar penuh: hanya QR yang tampil
+  $('#btnZen').addEventListener('click', function () {
+    document.body.classList.toggle('zen');
+    var zen = document.body.classList.contains('zen');
+    if (zen && document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen().catch(function () { /* abaikan */ });
+    } else if (!zen && document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(function () { /* abaikan */ });
+    }
+    this.innerHTML = zen ? '&#10005; Keluar Layar Penuh' : '&#9974; Layar Penuh';
+  });
+
+  $('#btnPrint').addEventListener('click', function () { window.print(); });
+})();
+</script>
+</body>
+</html>

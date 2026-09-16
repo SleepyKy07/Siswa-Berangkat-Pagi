@@ -34,8 +34,8 @@
     .preview img{width:100%;display:block}
   </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="../assets/js/supabase-config.js?v=10"></script>
-  <script src="../assets/js/supabase-client.js?v=10"></script>
+  <script src="../assets/js/supabase-config.js?v=11"></script>
+  <script src="../assets/js/supabase-client.js?v=11"></script>
 </head>
 <body>
 
@@ -262,7 +262,7 @@
   async function submitCheckIn() {
     var btn = $('#btnUse');
     btn.disabled = true;
-    btn.textContent = 'MengirimÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦';
+    btn.textContent = 'MengirimÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¦';
 
     try {
       var selfieDataUrl = $('#previewImg').src;
@@ -288,7 +288,7 @@
         return;
       }
 
-      // Sukses ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â simpan untuk halaman sukses, bersihkan state sementara
+      // Sukses ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â simpan untuk halaman sukses, bersihkan state sementara
       try {
         sessionStorage.setItem('lastCheckinStudent', JSON.stringify(result.student));
         sessionStorage.setItem('lastCheckinTimestamp', result.timestamp);
