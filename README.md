@@ -40,6 +40,35 @@ Konfirmasi → Simpan check-in (timestamp SERVER)
 Identitas yang dipakai hanya: **nama**, **kelas**, **selfie**, **timestamp server**.
 NIS **tidak diminta** dan **tidak pernah dikirim ke frontend**.
 
+## QR Permanen (untuk ditempel di gerbang)
+
+QR sudah dibuat dan tersedia di:
+
+- `assets/images/qr-checkin.png` — versi berwarna (teal, rounded)
+- `assets/images/qr-checkin-bw.png` — versi hitam-putih (paling aman untuk dicetak)
+
+Keduanya mengarah ke URL permanen:
+
+```
+https://sleepyky07.github.io/Siswa-Berangkat-Pagi/checkin/
+```
+
+Cara pakai:
+
+1. Cetak `qr-checkin-bw.png` (ukuran disarankan minimal 10×10 cm agar mudah discan).
+2. Tempel di gerbang/pintu masuk sekolah.
+3. QR **tidak perlu diganti** setiap hari — status AKTIF/NONAKTIF dicek dari server
+   setiap kali discan.
+4. Halaman `/checkin/` juga menampilkan QR ini, jadi siswa bisa memindainya
+   langsung dari layar bila perlu.
+
+**Jika domain berubah** (mis. pindah host), QR harus dibuat ulang. Cara membuat ulang:
+
+```bash
+pip install "qrcode[pil]"
+python -c "import qrcode; qrcode.make('URL_BARU').save('assets/images/qr-checkin-bw.png')"
+```
+
 ## Setup Backend (Supabase Gratis)
 
 1. Daftar di https://supabase.com → buat project baru
