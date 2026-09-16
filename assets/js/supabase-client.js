@@ -411,7 +411,7 @@ var SBPag = (function () {
    * Syarat: ada policy SELECT pada storage.objects untuk bucket 'selfies'
    * (lihat bagian 6 di supabase/setup.sql).
    * @param {string} path - selfie_path
-   * @param {number} [expires] - masa berlaku (detik), default 300
+   * @param {number} [expires] - masa berlaku (detik), default 3600 (1 jam)
    * @returns {Promise<Object>} { url } | { error, detail }
    */
   async function getSelfieUrl(path, expires) {
@@ -422,7 +422,7 @@ var SBPag = (function () {
     }
 
     try {
-      var ttl = expires || 300;
+      var ttl = expires || 3600;
       var res = await window.__sb
         .storage
         .from('selfies')
