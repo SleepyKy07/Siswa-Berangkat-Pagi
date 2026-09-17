@@ -2,7 +2,7 @@
    SUPABASE CLIENT
    ================================================================
    Helper untuk sistem Siswa Berangkat Pagi.
-   Semua operasi data lewat modul ini â€” status/sesi TIDAK pernah
+   Semua operasi data lewat modul ini — status/sesi TIDAK pernah
    disimpan di localStorage.
 
    REVISI: identitas check-in tidak lagi memakai NIS.
@@ -10,7 +10,7 @@
    selfie, dan timestamp server. Frontend tidak pernah menerima NIS.
 
    Didaftarkan sebagai global `window.SBPag`, dimuat lewat <script src>
-   biasa. JANGAN menambahkan `export` di file ini â€” file yang memakai
+   biasa. JANGAN menambahkan `export` di file ini — file yang memakai
    `export` hanya bisa dimuat sebagai module dan akan gagal bila dipanggil
    dengan <script> biasa.
    ================================================================ */
@@ -63,12 +63,12 @@ var SBPag = (function () {
 
   /**
    * Pastikan client siap. Mengembalikan Promise<boolean>.
-   * Selalu bisa di-await â€” tidak lagi "gagal sekali lalu berhasil saat retry".
+   * Selalu bisa di-await — tidak lagi "gagal sekali lalu berhasil saat retry".
    */
   function ready() {
     if (!readyPromise) {
       if (!cfg.url || cfg.url.indexOf('YOUR-PROJECT') > -1) {
-        console.warn('[SB] SUPABASE CONFIG BELUM DIISI â€” paste URL + anonKey di assets/js/supabase-config.js');
+        console.warn('[SB] SUPABASE CONFIG BELUM DIISI — paste URL + anonKey di assets/js/supabase-config.js');
         readyPromise = Promise.resolve(false);
       } else if (window.supabase) {
         readyPromise = Promise.resolve(createClientOnce());
@@ -712,6 +712,274 @@ var SBPag = (function () {
     }
   }
 
+  // --- CRUD SISWA (untuk halaman apresiasi) ---
+
+  /**
+   * Tambah siswa baru. NIS dibuat otomatis bila kosong (kolom wajib unik).
+   * @returns {Promise<Object>} { student } | { error, detail }
+   */
+  async function tambahSiswa(data) {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    try {
+      var d = data || {};
+      var nama = String(d.nama || '').trim();
+      if (nama.length < 3) return { error: 'NAMA_TIDAK_VALID', detail: 'Nama minimal 3 karakter.' };
+
+      var nis = String(d.nis || '').trim();
+      if (!nis) {
+        // NIS wajib unik; buat otomatis agar tidak bentrok
+        nis = 'AUTO-' + Date.now().toString(36).toUpperCase();
+      }
+
+      var res = await window.__sb
+        .from('students')
+        .insert({
+          nis: nis,
+          nama: nama,
+          kelas: String(d.kelas || '').trim(),
+          jurusan: String(d.jurusan || '').trim(),
+          jk: (d.jk === 'P') ? 'P' : 'L',
+          telp: String(d.telp || '').trim(),
+          alamat: String(d.alamat || '').trim(),
+          aktif: true
+        })
+        .select('id, nama, nis, kelas')
+        .single();
+
+      if (res.error) return { error: 'GAGAL_TAMBAH_SISWA', detail: res.error.message };
+      return { student: res.data };
+    } catch (err) {
+      console.error('[SB] tambahSiswa exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  /**
+   * Ubah data siswa.
+   */
+  async function ubahSiswa(id, data) {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    try {
+      var d = data || {};
+      var patch = {};
+      if (d.nama != null) patch.nama = String(d.nama).trim();
+      if (d.kelas != null) patch.kelas = String(d.kelas).trim();
+      if (d.jurusan != null) patch.jurusan = String(d.jurusan).trim();
+      if (d.jk != null) patch.jk = (d.jk === 'P') ? 'P' : 'L';
+      if (d.telp != null) patch.telp = String(d.telp).trim();
+      if (d.alamat != null) patch.alamat = String(d.alamat).trim();
+      if (d.nis != null && String(d.nis).trim() !== '') patch.nis = String(d.nis).trim();
+
+      var res = await window.__sb
+        .from('students')
+        .update(patch)
+        .eq('id', id)
+        .select('id, nama, nis, kelas')
+        .single();
+
+      if (res.error) return { error: 'GAGAL_UBAH_SISWA', detail: res.error.message };
+      return { student: res.data };
+    } catch (err) {
+      console.error('[SB] ubahSiswa exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  /**
+   * Hapus siswa (menghapus juga catatan pagi terkait lewat ON DELETE CASCADE).
+   */
+  async function hapusSiswa(id) {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    try {
+      var res = await window.__sb.from('students').delete().eq('id', id);
+      if (res.error) return { error: 'GAGAL_HAPUS_SISWA', detail: res.error.message };
+      return { success: true };
+    } catch (err) {
+      console.error('[SB] hapusSiswa exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  // --- APRESIASI "BERANGKAT PAGI" ---
+
+  /**
+   * Daftar siswa + total pagi + poin + sisa (dari server, bukan localStorage).
+   * @returns {Promise<Object>} { items: Array, error }
+   */
+  async function listApresiasiSiswa() {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI', items: [] };
+    try {
+      var res = await window.__sb.rpc('list_apresiasi_siswa');
+      if (res.error) {
+        console.error('[SB] list_apresiasi_siswa error:', res.error);
+        return { error: 'GAGAL_MUAT_APRESIASI', detail: res.error.message, items: [] };
+      }
+      return { items: res.data || [], error: null };
+    } catch (err) {
+      console.error('[SB] listApresiasiSiswa exception:', err);
+      return { error: 'EXCEPTION', detail: err.message, items: [] };
+    }
+  }
+
+  /**
+   * Riwayat catatan "paling pagi".
+   * @param {string} [dari] - 'YYYY-MM-DD'
+   * @param {string} [sampai] - 'YYYY-MM-DD'
+   */
+  async function listMorningRecords(dari, sampai) {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI', items: [] };
+    try {
+      var res = await window.__sb.rpc('list_morning_records', {
+        p_dari: dari || null,
+        p_sampai: sampai || null
+      });
+      if (res.error) return { error: 'GAGAL_MUAT_RIWAYAT', detail: res.error.message, items: [] };
+      return { items: res.data || [], error: null };
+    } catch (err) {
+      console.error('[SB] listMorningRecords exception:', err);
+      return { error: 'EXCEPTION', detail: err.message, items: [] };
+    }
+  }
+
+  /**
+   * Catat "paling pagi" secara manual (untuk data lama / koreksi).
+   * @param {string|number} identitas - id siswa ATAU nama siswa
+   * @param {string} tanggal - 'YYYY-MM-DD'
+   */
+  async function tambahMorningManual(identitas, tanggal) {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    try {
+      var res = await window.__sb.rpc('tambah_morning_manual', {
+        p_identitas: String(identitas),
+        p_tanggal: tanggal
+      });
+      if (res.error) return { error: 'GAGAL_SIMPAN', detail: res.error.message };
+      if (res.data && res.data.error) return { error: res.data.error, detail: res.data.error };
+      return { success: true, data: res.data };
+    } catch (err) {
+      console.error('[SB] tambahMorningManual exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  /**
+   * Batalkan catatan "paling pagi".
+   * @param {number|string} studentId
+   * @param {string} tanggal - 'YYYY-MM-DD'
+   */
+  async function hapusMorningRecord(studentId, tanggal) {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    try {
+      var res = await window.__sb.rpc('hapus_morning_record', {
+        p_student_id: studentId,
+        p_tanggal: tanggal
+      });
+      if (res.error) return { error: 'GAGAL_HAPUS', detail: res.error.message };
+      if (res.data && res.data.error) return { error: res.data.error };
+      return { success: true, data: res.data };
+    } catch (err) {
+      console.error('[SB] hapusMorningRecord exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  /**
+   * Sinkronkan satu check-in ke apresiasi (biasanya dipanggil server saat
+   * menyetujui pending; tersedia juga untuk keperluan koreksi manual).
+   * @param {number|string} checkinId
+   */
+  async function syncMorningFromCheckin(checkinId) {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    try {
+      var res = await window.__sb.rpc('sync_morning_from_checkin', { p_checkin_id: checkinId });
+      if (res.error) return { error: 'GAGAL_SINKRON', detail: res.error.message };
+      return { success: true, data: res.data };
+    } catch (err) {
+      console.error('[SB] syncMorningFromCheckin exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  /**
+   * Reset SELURUH catatan "paling pagi" + poin (satu panggilan server).
+   * @returns {Promise<Object>} { success, terhapus } | { error }
+   */
+  async function resetMorningAll() {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    try {
+      var res = await window.__sb.rpc('reset_morning_all');
+      if (res.error) return { error: 'GAGAL_RESET', detail: res.error.message };
+      if (res.data && res.data.error) return { error: res.data.error };
+      return { success: true, terhapus: (res.data && res.data.terhapus) || 0 };
+    } catch (err) {
+      console.error('[SB] resetMorningAll exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  // --- JADWAL PIKET (per tanggal) ---
+
+  /**
+   * Seluruh jadwal piket: { 'YYYY-MM-DD': [id1, id2] }.
+   */
+  async function listPiket() {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI', jadwal: {} };
+    try {
+      var res = await window.__sb.rpc('list_piket');
+      if (res.error) return { error: 'GAGAL_MUAT_PIKET', detail: res.error.message, jadwal: {} };
+      var out = {};
+      (res.data || []).forEach(function (r) {
+        var ids = (r.student_ids || []).map(function (x) { return String(x); });
+        out[r.tanggal] = ids;
+      });
+      return { jadwal: out, error: null };
+    } catch (err) {
+      console.error('[SB] listPiket exception:', err);
+      return { error: 'EXCEPTION', detail: err.message, jadwal: {} };
+    }
+  }
+
+  /**
+   * Simpan petugas (maks 2) untuk satu tanggal.
+   * @param {string} tanggal - 'YYYY-MM-DD'
+   * @param {Array<number|string>} ids - id siswa (elemen kosong dibuang)
+   */
+  async function simpanPiket(tanggal, ids) {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    try {
+      var bersih = (ids || []).filter(function (x) { return x !== '' && x != null; })
+                              .map(function (x) { return Number(x); });
+      var res = await window.__sb.rpc('simpan_piket_tanggal', {
+        p_tanggal: tanggal,
+        p_ids: bersih
+      });
+      if (res.error) return { error: 'GAGAL_SIMPAN_PIKET', detail: res.error.message };
+      if (res.data && res.data.error) return { error: res.data.error, detail: res.data.error };
+      return { success: true, data: res.data };
+    } catch (err) {
+      console.error('[SB] simpanPiket exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
+  /**
+   * Hapus jadwal petugas untuk satu tanggal.
+   */
+  async function hapusPiket(tanggal) {
+    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
+    try {
+      var res = await window.__sb.rpc('hapus_piket_tanggal', { p_tanggal: tanggal });
+      if (res.error) return { error: 'GAGAL_HAPUS_PIKET', detail: res.error.message };
+      if (res.data && res.data.error && res.data.error !== 'JADWAL_TIDAK_DITEMUKAN') {
+        return { error: res.data.error };
+      }
+      return { success: true, data: res.data };
+    } catch (err) {
+      console.error('[SB] hapusPiket exception:', err);
+      return { error: 'EXCEPTION', detail: err.message };
+    }
+  }
+
   // --- EXPORTS ---
 
   var api = {
@@ -733,7 +1001,19 @@ var SBPag = (function () {
     getSelfieBlob: getSelfieBlob,
     revokeSelfieBlob: revokeSelfieBlob,
     countHistoryToDelete: countHistoryToDelete,
-    deleteHistory: deleteHistory
+    deleteHistory: deleteHistory,
+    tambahSiswa: tambahSiswa,
+    ubahSiswa: ubahSiswa,
+    hapusSiswa: hapusSiswa,
+    listApresiasiSiswa: listApresiasiSiswa,
+    listMorningRecords: listMorningRecords,
+    tambahMorningManual: tambahMorningManual,
+    hapusMorningRecord: hapusMorningRecord,
+    syncMorningFromCheckin: syncMorningFromCheckin,
+    resetMorningAll: resetMorningAll,
+    listPiket: listPiket,
+    simpanPiket: simpanPiket,
+    hapusPiket: hapusPiket
   };
 
   // Daftarkan sebagai global (untuk <script> biasa)
