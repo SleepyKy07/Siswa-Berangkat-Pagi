@@ -446,6 +446,12 @@ begin
   set status = 'approved', reviewed_at = now()
   where id = p_id;
 
+  -- Catat ke apresiasi "Berangkat Pagi" bila check-in ini yang terawal hari itu.
+  -- (Fungsi sync_morning_from_checkin dibuat di bagian 12.)
+  if v_row.checkin_id is not null then
+    perform sync_morning_from_checkin(v_row.checkin_id);
+  end if;
+
   return jsonb_build_object('success', true, 'student_id', v_student_id);
 end;
 $$;
@@ -600,6 +606,367 @@ begin
     'pending_deleted', v_pending
   );
 end;
+$$;
+
+/* ================================================================
+   12. APRESIASI SISWA BERANGKAT PAGI (Supabase)
+   ================================================================
+   Menggantikan penyimpanan localStorage pada halaman berangkat-pagi.
+   Data tersimpan di server sehingga bisa dibuka dari perangkat mana pun
+   dan tidak hilang bila cache browser dibersihkan.
+
+   Aturan: setiap 2x menjadi "paling pagi" -> 1 poin apresiasi.
+   ================================================================ */
+
+-- 12a. Riwayat "paling pagi" per hari (1 siswa hanya 1x per tanggal).
+create table if not exists morning_records (
+  id bigint generated always as identity primary key,
+  student_id bigint references students(id) on delete cascade not null,
+  tanggal date not null,
+  nama text default '',
+  kelas text default '',
+  recorded_at timestamptz default now(),
+  source text default 'checkin' check (source in ('checkin','manual')),
+  unique (student_id, tanggal)
+);
+
+create index if not exists idx_morning_tanggal on morning_records(tanggal);
+create index if not exists idx_morning_student on morning_records(student_id);
+
+-- 12b. Cache poin di tabel students (agar tampilan papan peringkat cepat).
+-- Ditambah kolom `telp` & `alamat` (jurusan/jk sudah ada dari awal) supaya
+-- form "Data Siswa" di halaman apresiasi tersimpan lengkap di server.
+alter table students add column if not exists poin_apresiasi int not null default 0;
+alter table students add column if not exists telp text default '';
+alter table students add column if not exists alamat text default '';
+
+-- 12c. Hitung ulang poin + sisa pagi seorang siswa dari morning_records.
+-- Rumus (antisalah): total = jumlah catatan; poin = total / 2; sisa = total % 2.
+create or replace function hitung_poin_siswa(p_student_id bigint)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_total int;
+  v_poin int;
+begin
+  select count(*) into v_total from morning_records where student_id = p_student_id;
+  v_poin := v_total / 2;  -- pembagian integer = floor
+
+  update students set poin_apresiasi = v_poin where id = p_student_id;
+
+  return jsonb_build_object(
+    'student_id', p_student_id,
+    'total_pagi', v_total,
+    'poin', v_poin,
+    'sisa', v_total % 2
+  );
+end;
+$$;
+
+-- 12d. Catat "paling pagi" untuk sebuah check-in yang baru disetujui.
+-- Menentukan apakah check-in tersebut yang TERAWAL pada tanggal itu.
+-- Return: { status: 'tercatat'|'bukan_terawal'|'sudah_ada'|'tidak_ada', ... }
+create or replace function sync_morning_from_checkin(p_checkin_id bigint)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_ci check_ins;
+  v_terawal check_ins;
+  v_nama text;
+  v_kelas text;
+begin
+  -- Ambil data check-in
+  select * into v_ci from check_ins where id = p_checkin_id;
+  if not found then
+    return jsonb_build_object('status', 'tidak_ada');
+  end if;
+  if v_ci.student_id is null then
+    return jsonb_build_object('status', 'tidak_ada', 'alasan', 'checkin belum ditautkan ke siswa');
+  end if;
+
+  -- Sudah tercatat untuk tanggal itu?
+  if exists (select 1 from morning_records m
+             where m.student_id = v_ci.student_id and m.tanggal = v_ci.checkin_date) then
+    return jsonb_build_object('status', 'sudah_ada');
+  end if;
+
+  -- Cari check-in TERAWAL pada tanggal tersebut
+  select * into v_terawal
+  from check_ins
+  where checkin_date = v_ci.checkin_date
+  order by checked_in_at asc
+  limit 1;
+
+  if v_terawal.id is distinct from v_ci.id then
+    return jsonb_build_object('status', 'bukan_terawal');
+  end if;
+
+  -- Ambil nama & kelas dari master siswa
+  select s.nama, coalesce(s.kelas, '') into v_nama, v_kelas
+  from students s where s.id = v_ci.student_id;
+
+  insert into morning_records (student_id, tanggal, nama, kelas, source)
+  values (v_ci.student_id, v_ci.checkin_date, coalesce(v_nama, ''), coalesce(v_kelas, ''), 'checkin')
+  on conflict (student_id, tanggal) do nothing;
+
+  return jsonb_build_object(
+    'status', 'tercatat',
+    'student_id', v_ci.student_id,
+    'tanggal', v_ci.checkin_date,
+    'ringkasan', hitung_poin_siswa(v_ci.student_id)
+  );
+end;
+$$;
+
+-- 12e. Daftar siswa + total pagi + poin + sisa (untuk halaman apresiasi).
+create or replace function list_apresiasi_siswa()
+returns table (
+  id bigint,
+  nama text,
+  kelas text,
+  nis text,
+  jurusan text,
+  jk text,
+  telp text,
+  alamat text,
+  total_pagi bigint,
+  poin bigint,
+  sisa bigint
+)
+language sql
+security definer
+as $$
+  select
+    s.id,
+    s.nama,
+    coalesce(s.kelas, '') as kelas,
+    coalesce(s.nis, '') as nis,
+    coalesce(s.jurusan, '') as jurusan,
+    coalesce(s.jk, 'L') as jk,
+    coalesce(s.telp, '') as telp,
+    coalesce(s.alamat, '') as alamat,
+    count(m.id)::bigint as total_pagi,
+    (count(m.id) / 2)::bigint as poin,
+    (count(m.id) % 2)::bigint as sisa
+  from students s
+  left join morning_records m on m.student_id = s.id
+  group by s.id, s.nama, s.kelas, s.nis, s.jurusan, s.jk, s.telp, s.alamat
+  order by (count(m.id) / 2) desc, s.nama asc;
+$$;
+
+-- 12f. Riwayat catatan pagi (untuk tampilan per tanggal / rekap).
+create or replace function list_morning_records(p_dari date default null, p_sampai date default null)
+returns table (
+  id bigint,
+  student_id bigint,
+  tanggal date,
+  nama text,
+  kelas text,
+  recorded_at timestamptz
+)
+language sql
+security definer
+as $$
+  select m.id, m.student_id, m.tanggal, m.nama, m.kelas, m.recorded_at
+  from morning_records m
+  where (p_dari is null or m.tanggal >= p_dari)
+    and (p_sampai is null or m.tanggal <= p_sampai)
+  order by m.tanggal desc, m.recorded_at asc;
+$$;
+
+-- 12g. Catat "paling pagi" secara manual (untuk data lama / koreksi admin).
+-- p_identitas boleh berupa id siswa (angka) atau NAMA siswa.
+create or replace function tambah_morning_manual(p_identitas text, p_tanggal date)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_student students;
+  v_id bigint;
+begin
+  if p_tanggal is null then
+    return jsonb_build_object('error', 'TANGGAL_WAJIB_DIISI');
+  end if;
+
+  -- Coba sebagai id numerik dulu
+  begin
+    v_id := p_identitas::bigint;
+  exception when others then
+    v_id := null;
+  end;
+
+  if v_id is not null then
+    select * into v_student from students where id = v_id;
+  end if;
+
+  if v_student.id is null then
+    select * into v_student
+    from students
+    where lower(trim(nama)) = lower(trim(coalesce(p_identitas, '')))
+    limit 1;
+  end if;
+
+  if v_student.id is null then
+    return jsonb_build_object('error', 'SISWA_TIDAK_DITEMUKAN');
+  end if;
+
+  insert into morning_records (student_id, tanggal, nama, kelas, source)
+  values (v_student.id, p_tanggal, v_student.nama, coalesce(v_student.kelas, ''), 'manual')
+  on conflict (student_id, tanggal) do nothing;
+
+  return jsonb_build_object(
+    'success', true,
+    'student_id', v_student.id,
+    'nama', v_student.nama,
+    'ringkasan', hitung_poin_siswa(v_student.id)
+  );
+end;
+$$;
+
+-- 12h. Batalkan catatan pagi (koreksi admin).
+create or replace function hapus_morning_record(p_student_id bigint, p_tanggal date)
+returns jsonb
+language plpgsql
+security definer
+as $$
+begin
+  delete from morning_records
+  where student_id = p_student_id and tanggal = p_tanggal;
+
+  if not found then
+    return jsonb_build_object('error', 'CATATAN_TIDAK_DITEMUKAN');
+  end if;
+
+  return jsonb_build_object(
+    'success', true,
+    'ringkasan', hitung_poin_siswa(p_student_id)
+  );
+end;
+$$;
+
+-- 12i. Reset SELURUH catatan pagi sekaligus (menggantikan hapus satu-per-satu
+-- dari browser). Cache poin semua siswa ikut dinolkan dalam satu transaksi.
+create or replace function reset_morning_all()
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_terhapus int;
+begin
+  delete from morning_records;
+  get diagnostics v_terhapus = row_count;
+
+  update students set poin_apresiasi = 0;
+
+  return jsonb_build_object(
+    'success', true,
+    'terhapus', v_terhapus
+  );
+end;
+$$;
+
+/* ================================================================
+   13. JADWAL PIKET PER TANGGAL (halaman apresiasi "Berangkat Pagi")
+   ================================================================
+   Menggantikan penyimpanan localStorage untuk jadwal petugas piket.
+   Satu tanggal punya maks. 2 petugas (slot 1 & 2), disimpan sebagai
+   array id siswa. Bisa dibuka dari perangkat mana pun.
+   ================================================================ */
+
+-- 13a. Tabel jadwal piket: 1 baris per tanggal yang sudah diatur.
+create table if not exists piket_schedule (
+  tanggal date primary key,
+  student_ids bigint[] not null default '{}',
+  updated_at timestamptz default now()
+);
+
+create index if not exists idx_piket_tanggal on piket_schedule(tanggal);
+
+-- 13b. Simpan petugas untuk satu tanggal (p_ids: array id siswa, maks 2,
+--      id kosong/null dibuang otomatis).
+create or replace function simpan_piket_tanggal(p_tanggal date, p_ids bigint[])
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_bersih bigint[];
+begin
+  if p_tanggal is null then
+    return jsonb_build_object('error', 'TANGGAL_WAJIB_DIISI');
+  end if;
+
+  -- Buang null/id tidak valid & validasi ke tabel students
+  select coalesce(array_agg(s.id order by s.id), '{}') into v_bersih
+  from (
+    select distinct unnest(coalesce(p_ids, '{}')) as id
+  ) u
+  join students s on s.id = u.id
+  where u.id is not null;
+
+  if array_length(v_bersih, 1) > 2 then
+    return jsonb_build_object('error', 'MAKSIMAL_2_PETUGAS');
+  end if;
+
+  if array_length(v_bersih, 1) is null then
+    -- Tidak ada petugas valid -> hapus baris tanggal tsb
+    delete from piket_schedule where tanggal = p_tanggal;
+    return jsonb_build_object('success', true, 'tanggal', p_tanggal, 'petugas', 0);
+  end if;
+
+  insert into piket_schedule (tanggal, student_ids, updated_at)
+  values (p_tanggal, v_bersih, now())
+  on conflict (tanggal) do update
+    set student_ids = excluded.student_ids,
+        updated_at = now();
+
+  return jsonb_build_object(
+    'success', true,
+    'tanggal', p_tanggal,
+    'petugas', v_bersih
+  );
+end;
+$$;
+
+-- 13c. Hapus jadwal petugas untuk satu tanggal.
+create or replace function hapus_piket_tanggal(p_tanggal date)
+returns jsonb
+language plpgsql
+security definer
+as $$
+begin
+  if p_tanggal is null then
+    return jsonb_build_object('error', 'TANGGAL_WAJIB_DIISI');
+  end if;
+
+  delete from piket_schedule where tanggal = p_tanggal;
+
+  if not found then
+    return jsonb_build_object('error', 'JADWAL_TIDAK_DITEMUKAN');
+  end if;
+
+  return jsonb_build_object('success', true, 'tanggal', p_tanggal);
+end;
+$$;
+
+-- 13d. Seluruh jadwal piket (tanggal -> array id siswa).
+create or replace function list_piket()
+returns table (
+  tanggal date,
+  student_ids bigint[]
+)
+language sql
+security definer
+as $$
+  select p.tanggal, p.student_ids
+  from piket_schedule p
+  order by p.tanggal asc;
 $$;
 
 /* ================================================================
