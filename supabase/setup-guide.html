@@ -49,15 +49,21 @@
       <li>Pastikan tidak ada error. Ini akan membuat:
         <ul>
           <li>Tabel <code>sessions</code> (1 baris, id=1) + fungsi <code>get_session_status()</code></li>
-          <li>Tabel <code>sessions</code> (1 baris, id=1) + fungsi <code>get_session_status()</code></li>
           <li>Tabel <code>students</code>, <code>check_ins</code> (+ kolom <code>nama_manual</code>/<code>kelas_manual</code>), dan <code>pending_students</code></li>
+          <li>Tabel <code>morning_records</code> + <code>piket_schedule</code> (apresiasi &amp; jadwal piket)</li>
           <li>Fungsi <code>submit_checkin_manual()</code>, <code>list_pending_students()</code>,
             <code>approve_pending_student()</code>, <code>reject_pending_student()</code>,
             <code>list_today_checkins()</code>, <code>get_server_date()</code></li>
+          <li>Fungsi apresiasi: <code>list_apresiasi_siswa()</code>, <code>list_morning_records()</code>,
+            <code>tambah_morning_manual()</code>, <code>hapus_morning_record()</code>,
+            <code>reset_morning_all()</code></li>
+          <li>Fungsi jadwal piket: <code>simpan_piket_tanggal()</code>, <code>hapus_piket_tanggal()</code>,
+            <code>list_piket()</code></li>
           <li>Bucket Storage <code>selfies</code> (privat; anon hanya boleh upload)</li>
         </ul>
       </li>
     </ol>
+    <div class="notice ok">Script bersifat <strong>idempotent</strong> — aman dijalankan ulang untuk project yang sudah ada (mis. setelah update repo). Jalankan ulang setelah menarik pembaruan ini.</div>
     <div class="notice ok">Fungsi <code>get_session_status()</code> dan <code>submit_checkin_manual()</code> memakai jam server PostgreSQL sebagai sumber waktu utama. Device siswa tidak dipercaya untuk waktu.</div>
   </div>
 
@@ -139,6 +145,23 @@
       <li>Status ditampilkan persis dari server via <code>get_session_status()</code>.</li>
     </ol>
     <div class="notice">Dashboard dilindungi <strong>PIN</strong> (cek browser; atur di <code>DASHBOARD_PIN</code> pada <code>supabase-config.js</code>). Ini proteksi ringan, bukan keamanan sungguhan.</div>
+  </div>
+
+  <div class="card">
+    <h2>8. Halaman Apresiasi &amp; Jadwal Piket</h2>
+    <ol>
+      <li>Buka <code>berangkat-pagi/index.html</code> (PIN sama dengan dashboard admin).</li>
+      <li>Data tersimpan di server: <strong>siswa</strong> (tabel <code>students</code>),
+        <strong>catatan paling pagi</strong> (<code>morning_records</code>), dan
+        <strong>jadwal piket</strong> (<code>piket_schedule</code>).</li>
+      <li>Tambah/ubah siswa bisa lengkap: Nama, NIS, Kelas, Jurusan, JK, No. HP, Alamat.</li>
+      <li>Import siswa massal dari CSV menulis langsung ke server (NIS duplikat dilewati).</li>
+      <li>Catat paling pagi: pilih 1 siswa per tanggal &rarr; tiap <strong>2x</strong> tercatat = 1 poin apresiasi.</li>
+      <li>Jadwal piket: klik tombol <strong>&#128197; Jadwal</strong>, pilih 2 anggota per tanggal, simpan.</li>
+      <li><strong>Cadangkan</strong> mengunduh data server ke file JSON. (Fitur <em>Pulihkan</em> dihapus —
+        data master ada di server.)</li>
+    </ol>
+    <div class="notice">Menghapus siswa juga menghapus riwayat check-in &amp; catatan pagi miliknya (<code>ON DELETE CASCADE</code>).</div>
   </div>
 
 </div>

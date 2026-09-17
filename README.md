@@ -8,7 +8,7 @@ Program absensi sekolah menggunakan QR permanen + server-side validation.
 |----------|-----------|---------|
 | **Frontend** | HTML / CSS / Vanilla JS (GitHub Pages) | Semua file lama tetap bekerja tanpa perubahan |
 | **Backend** | Supabase (free tier) | Postgres + Storage + API |
-| **Database** | Postgres via Supabase | Tabel: sessions, students, check_ins, pending_students |
+| **Database** | Postgres via Supabase | Tabel: sessions, students, check_ins, pending_students, morning_records, piket_schedule |
 | **Storage** | Supabase Storage bucket `selfies` | Privat, dilihat admin via signed URL singkat |
 | **Routing** | `/checkin` → status & aksi | QR permanen di gerbang |
 
@@ -269,6 +269,35 @@ Bila pesan **dikosongkan**, siswa melihat pesan bawaan:
 Pesan disimpan di kolom `sessions.override_reason` dan dikirim lewat
 `get_session_status()` sebagai `override_reason`.
 
+## Apresiasi "Berangkat Pagi" (`berangkat-pagi/`)
+
+Halaman apresiasi kini **tersimpan di server** (bukan localStorage) sehingga bisa
+dibuka dari perangkat mana pun dan tidak hilang bila cache dibersihkan:
+
+- **Data siswa** (nama, NIS, kelas, jurusan, JK, telp, alamat) → tabel `students`
+- **Catatan "paling pagi"** → tabel `morning_records` (1 siswa per tanggal)
+- **Jadwal piket OSIS** → tabel `piket_schedule` (maks 2 petugas per tanggal)
+- **Poin apresiasi**: setiap **2x tercatat paling pagi = 1 poin** (dihitung server
+  lewat `hitung_poin_siswa`, di-cache di kolom `students.poin_apresiasi`)
+- **Import CSV** menulis langsung ke server; baris dengan NIS duplikat dilewati
+- **Cadangkan** mengunduh data server lengkap (siswa + pagi + jadwal) sebagai JSON
+  (fitur *Pulihkan* dihapus — data master ada di server)
+- **Reset Papan** menghapus seluruh catatan pagi + poin dalam satu panggilan
+  (`reset_morning_all`)
+
+Halaman ini dilindungi **PIN yang sama dengan dashboard admin** (diatur di
+`assets/js/supabase-config.js` → `DASHBOARD_PIN`), dicek di browser. Sama seperti
+dashboard: proteksi ringan, bukan keamanan sungguhan.
+
+> **Penting**: pengaitan otomatis ke apresiasi terjadi saat admin **menyetujui**
+> data pending — jika check-in siswa adalah yang terawal hari itu dan belum
+> tercatat, `approve_pending_student()` memanggil `sync_morning_from_checkin()`.
+> Catatan juga bisa ditambah manual dari halaman apresiasi (`tambah_morning_manual`).
+
+> **Peringatan CASCADE**: menghapus siswa dari halaman apresiasi juga menghapus
+> seluruh riwayat check-in (`check_ins`) dan catatan pagi (`morning_records`)
+> milik siswa tersebut (konstraint `ON DELETE CASCADE` di database).
+
 ## Fungsi Server (dijalankan oleh `supabase/setup.sql`)
 
 | Fungsi | Kegunaan |
@@ -282,6 +311,16 @@ Pesan disimpan di kolom `sessions.override_reason` dan dikirim lewat
 | `collect_selfie_paths(p_mode, p_before_date)` | Kumpulkan path selfie yang akan dihapus |
 | `count_history_to_delete(p_mode, p_before_date)` | Hitung jumlah data yang akan dihapus |
 | `delete_checkin_history(p_mode, p_before_date)` | Hapus data check-in + pending yang ditinjau |
+| `hitung_poin_siswa(p_student_id)` | Hitung ulang poin apresiasi seorang siswa |
+| `sync_morning_from_checkin(p_checkin_id)` | Catat "paling pagi" bila check-in terawal hari itu |
+| `list_apresiasi_siswa()` | Daftar siswa + total pagi + poin + sisa (halaman apresiasi) |
+| `list_morning_records(p_dari, p_sampai)` | Riwayat catatan "paling pagi" |
+| `tambah_morning_manual(p_identitas, p_tanggal)` | Catat "paling pagi" manual (koreksi/data lama) |
+| `hapus_morning_record(p_student_id, p_tanggal)` | Batalkan satu catatan pagi |
+| `reset_morning_all()` | Hapus SEMUA catatan pagi + nolkan poin (satu transaksi) |
+| `simpan_piket_tanggal(p_tanggal, p_ids)` | Simpan petugas piket per tanggal (maks 2) |
+| `hapus_piket_tanggal(p_tanggal)` | Hapus jadwal petugas satu tanggal |
+| `list_piket()` | Seluruh jadwal piket |
 
 Mode untuk ketiga fungsi di atas: `before` (sebelum tanggal), `today` (hari ini),
 `all_before` (semua riwayat), `all` (semua termasuk hari ini).
@@ -310,6 +349,29 @@ Mode untuk ketiga fungsi di atas: `before` (sebelum tanggal), `today` (hari ini)
 6. `checkin/login.html`: dari dropdown → form input nama + kelas.
 7. `checkin/dashboard.html`: kartu **Data Pending** + label "belum terdaftar".
 8. `checkin/selfie.html` & `success.html`: memakai nama+kelas manual.
-9. **Hapus riwayat** di dashboard admin (sebelum tanggal / semua, termasuk file selfie).
+ 9. **Hapus riwayat** di dashboard admin (sebelum tanggal / semua, termasuk file selfie).
 10. Geolocation/anti-asrama tetap **dinonaktifkan** (kolom lokasi tetap ada di DB,
     tidak dipakai). Bisa diaktifkan kembali bila diperlukan.
+11. **Migrasi apresiasi "Berangkat Pagi" ke server**: data siswa, catatan pagi,
+    dan jadwal piket OSIS kini disimpan di Supabase (tabel `morning_records`,
+    `piket_schedule`, kolom lengkap di `students`), tidak lagi di localStorage.
+    Halaman apresiasi dilindungi PIN (sama dengan dashboard admin), import CSV
+    menulis ke server, fitur *Pulihkan* diganti *Cadangkan* saja, dan *Reset
+    Papan* menjadi satu panggilan server (`reset_morning_all`).
+    **Jalankan ulang `supabase/setup.sql`** di SQL Editor untuk project yang
+    sudah berjalan (semua perubahan bersifat idempotent).
+
+## Cara Menjalankan Secara Lokal (untuk testing)
+
+1. Serve folder repo lewat HTTPS (kamera butuh secure context):
+
+   ```bash
+   python scripts/serve-https.py
+   ```
+
+   Buka `https://localhost:8443/` (terima peringatan sertifikat self-signed).
+
+2. **Pastikan `supabase/setup.sql` terbaru sudah dijalankan** di SQL Editor
+   Supabase (bagian 12–13 diperlukan halaman apresiasi).
+
+3. PIN default: `1234` (ganti di `assets/js/supabase-config.js`).
