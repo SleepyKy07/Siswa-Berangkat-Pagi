@@ -302,15 +302,11 @@
       loadPending();
     }
 
-    // Cek status PIN tersimpan (berlaku per sesi tab)
-    var unlocked = false;
-    try { unlocked = sessionStorage.getItem(PIN_KEY) === '1'; } catch (e) { /* ignore */ }
-    if (unlocked) {
-      unlockDashboard();
-    } else {
-      askPin();
-    }
-
+    // Deklarasi referensi elemen HARUS sebelum cek PIN di bawah.
+    // Bug lama: saat reload/hard-refresh dalam kondisi sudah unlock,
+    // unlockDashboard() dipanggil SEBELUM variabel-variabel ini terisi,
+    // sehingga initDashboard() melempar TypeError dan kartu
+    // "Siswa Paling Pagi" + "Check-in Hari Ini" macet di "Memuat…".
     var statusCard = $('#statusCard');
     // Status sesi terakhir dari server (dipakai untuk prefill pesan di modal)
     var lastStatus = null;
@@ -319,6 +315,15 @@
     var modalToggle = $('#modalToggle');
     var formToggle = $('#formToggle');
     var modalSelfie = $('#modalSelfie');
+
+    // Cek status PIN tersimpan (berlaku per sesi tab)
+    var unlocked = false;
+    try { unlocked = sessionStorage.getItem(PIN_KEY) === '1'; } catch (e) { /* ignore */ }
+    if (unlocked) {
+      unlockDashboard();
+    } else {
+      askPin();
+    }
 
     function showLoading(el) { el.innerHTML = '<div class="notice">Memeriksa status server&hellip;</div>'; }
 
