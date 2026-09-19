@@ -743,6 +743,9 @@ end;
 $$;
 
 -- 12e. Daftar siswa + total pagi + poin + sisa (untuk halaman apresiasi).
+-- NOTE: drop dulu bila versi lama ada — CREATE OR REPLACE tidak boleh
+-- mengubah tipe return (versi lama hanya 7 kolom, tanpa jurusan/jk/telp/alamat).
+drop function if exists list_apresiasi_siswa();
 create or replace function list_apresiasi_siswa()
 returns table (
   id bigint,
@@ -779,6 +782,9 @@ as $$
 $$;
 
 -- 12f. Riwayat catatan pagi (untuk tampilan per tanggal / rekap).
+-- NOTE: drop dulu bila versi lama ada — CREATE OR REPLACE tidak boleh
+-- mengubah tipe return (baris OUT lama tanpa kolom `checkin_at`).
+drop function if exists list_morning_records(date, date);
 create or replace function list_morning_records(p_dari date default null, p_sampai date default null)
 returns table (
   id bigint,
