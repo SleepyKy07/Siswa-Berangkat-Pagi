@@ -15,9 +15,11 @@ body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:linear
 .back-bar a{color:#fff;text-decoration:none;display:inline-flex;align-items:center;gap:6px;font-size:.82rem;font-weight:600}
 .back-bar a span{color:#a7f3d0}
 .back-bar a:hover{opacity:.85}
-.btn-jadwal{position:absolute;right:12px;top:50%;transform:translateY(-50%);border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;border-radius:99px;padding:7px 14px;font:700 .78rem inherit;cursor:pointer;transition:.18s;display:inline-flex;align-items:center;gap:5px}
+/* Wadah tombol kanan-atas (Keluar / Segarkan / Jadwal) — flex agar tidak menumpuk */
+.bar-actions{position:absolute;right:12px;top:50%;transform:translateY(-50%);display:flex;gap:6px}
+.btn-jadwal{border:1px solid rgba(255,255,255,.5);background:rgba(255,255,255,.14);color:#fff;border-radius:99px;padding:7px 14px;font:700 .78rem inherit;cursor:pointer;transition:.18s;display:inline-flex;align-items:center;gap:5px;position:static;white-space:nowrap}
 .btn-jadwal:hover{background:rgba(255,255,255,.28)}
-@media(max-width:600px){.btn-jadwal{font-size:.72rem;padding:6px 10px}}
+@media(max-width:600px){.btn-jadwal{font-size:.72rem;padding:6px 10px}.back-bar a{font-size:.72rem}}
 
 /* Modal jadwal */
 .modal-overlay{position:fixed;inset:0;background:rgba(19,78,74,.55);z-index:1100;display:none;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(3px)}
@@ -122,7 +124,7 @@ main{max-width:1100px;margin:18px auto;padding:0 14px}.tab{display:none}.tab.act
 </head>
 <body>
 
-<div class="back-bar"><a href="../index.html"><span>&#8592;</span> Kembali ke Portal Program Kerja OSIS</a><button class="btn-jadwal" id="btnKunci" title="Kunci halaman (mintu PIN lagi)">&#128274; Keluar</button><button class="btn-jadwal" id="btnBukaJadwal">&#128197; Jadwal</button></div>
+<div class="back-bar"><a href="../index.html"><span>&#8592;</span> Kembali ke Portal Program Kerja OSIS</a><div class="bar-actions"><button class="btn-jadwal" id="btnKunci" title="Kunci halaman (mintu PIN lagi)">&#128274; Keluar</button><button class="btn-jadwal" id="btnSegarkan" title="Muat ulang data dari server (poin baru hasil approve akan muncul di sini)">&#128260; Segarkan</button><button class="btn-jadwal" id="btnBukaJadwal">&#128197; Jadwal</button></div></div>
 
 <header><div class="inner"><h1>&#127749; Apresiasi Siswa Pagi</h1><p>Catat siswa yang datang paling pagi dan berikan penghargaan atas konsistensinya.</p></div></header>
 <nav><button class="tab-btn active" data-tab="siswa">Data Siswa</button><button class="tab-btn" data-tab="pagi">Catat Pagi</button><button class="tab-btn" data-tab="papan">Papan Apresiasi</button></nav>
@@ -682,6 +684,55 @@ function cekPIN(){
 $('#pinSubmit').addEventListener('click',cekPIN);
 $('#pinInput').addEventListener('keydown',function(e){if(e.key==='Enter')cekPIN()});
 $('#btnKunci').addEventListener('click',function(){sessionStorage.removeItem('apresiasiPinOk');cobaBukaPIN()});
+
+/* ================= SEGARKAN (manual) =================
+   Poin di server memang sudah otomatis dihitung saat admin menyetujui
+   data pending di dashboard, tapi halaman ini tidak memuat ulang sendiri.
+   Tombol Segarkan menarik data terbaru; bila ada siswa yang POINNYA
+   BERTAMBAH sejak terakhir halaman melihat data (mis. baru di-approve),
+   efek apresiasi (toast + konfeti) dimunculkan di sini juga. */
+var sedangMuat=false;
+async function segarkanData(){
+  if(sedangMuat)return;
+  if(!SB_SIAP){ alert('Belum tersambung ke server. Periksa koneksi lalu muat ulang halaman.'); return; }
+  sedangMuat=true;
+  var btn=$('#btnSegarkan');
+  var labelAsal=btn.innerHTML;
+  btn.disabled=true; btn.style.opacity=.55; btn.innerHTML='Memuat&hellip;';
+
+  try{
+    // Snapshot poin lama utk deteksi kenaikan
+    var poinLama={};
+    Object.keys(db.poin||{}).forEach(function(k){poinLama[k]=db.poin[k]});
+
+    var res=await muatDariServer();
+    if(res && res.error){
+      alert('Gagal memuat data dari server: '+(res.detail||res.error));
+      return;
+    }
+    renderSemua();
+
+    // Deteksi siswa yang poinsnya naik → efek apresiasi
+    var naik=[];
+    Object.keys(db.poin||{}).forEach(function(id){
+      var lama=poinLama[id]||0, baru=db.poin[id]||0;
+      if(baru>lama){
+        var s=db.students.find(function(x){return x.id===id});
+        if(s)naik.push(s.nama);
+      }
+    });
+    naik.forEach(function(nama,i){
+      setTimeout(function(){apresiasiEfek(nama)},i*450);
+    });
+  }catch(err){
+    console.error('[APRESIASI] gagal segarkan:',err);
+    alert('Gagal memuat data dari server: '+(err.message||err));
+  }finally{
+    sedangMuat=false;
+    btn.disabled=false; btn.style.opacity=''; btn.innerHTML=labelAsal;
+  }
+}
+$('#btnSegarkan').addEventListener('click',segarkanData);
 
 /* Muat data dari Supabase (bukan localStorage), lalu tampilkan. */
 (async function mulaiDariServer(){

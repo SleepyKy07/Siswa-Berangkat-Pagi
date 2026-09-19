@@ -289,6 +289,11 @@ dibuka dari perangkat mana pun dan tidak hilang bila cache dibersihkan:
   (fitur *Pulihkan* dihapus — data master ada di server)
 - **Reset Papan** menghapus seluruh catatan pagi + poin dalam satu panggilan
   (`reset_morning_all`)
+- **Tombol Segarkan** (pojok kanan atas): memuat ulang data dari server. Poin di
+  server memang otomatis terhitung saat admin menyetujui data pending, tapi
+  halaman ini tidak memuat ulang sendiri — klik Segarkan untuk melihatnya.
+  Bila ada siswa yang poinsnya bertambah sejak terakhir (mis. baru di-approve
+  di dashboard), efek apresiasi (toast + konfeti) dimunculkan di sini juga.
 
 Halaman ini dilindungi **PIN yang sama dengan dashboard admin** (diatur di
 `assets/js/supabase-config.js` → `DASHBOARD_PIN`), dicek di browser. Sama seperti
