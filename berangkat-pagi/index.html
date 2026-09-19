@@ -198,12 +198,30 @@ function esc(v){return String(v==null?'':v).replace(/[&<>"']/g,function(c){retur
 function today(){var d=new Date();return iso(d)}
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function dateText(v){if(!v)return '-';var p=v.split('-');var m=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];return Number(p[2])+' '+m[Number(p[1])-1]+' '+p[0]}
+/* Jam daftar presisi (jam:menit:detik) — SELALU WIB (Asia/Jakarta),
+   tidak ikut zona waktu perangkat pembuka halaman.
+   Contoh: 06.05.03 WIB */
+function jamWIB(ts){
+  if(!ts)return '-';
+  try{
+    var d=new Date(ts);
+    if(isNaN(d.getTime()))return '-';
+    var f;
+    try{
+      f=d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false,timeZone:'Asia/Jakarta'});
+    }catch(e){
+      f=d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false});
+    }
+    return String(f).replace(/\./g,'.')+' WIB';
+  }catch(e){return '-'}
+}
 
 /* ================= SINKRONISASI SUPABASE =================
    Data tidak lagi disimpan di localStorage — semuanya di server.
    Struktur `db` dipertahankan agar fungsi render lama tetap bekerja:
      db.students : [{ id, nama, nis, kelas, jurusan, jk, telp, alamat }]
      db.pagi     : { 'YYYY-MM-DD': student_id }  (dari morning_records)
+     db.pagiJam  : { 'YYYY-MM-DD': timestamp }   (jam daftar; checkin_at → fallback recorded_at)
      db.poin     : { student_id: jumlahPoin }
      db.hitung   : { student_id: totalPagi }
      db.sisa     : { student_id: 0|1 }
@@ -211,7 +229,7 @@ function dateText(v){if(!v)return '-';var p=v.split('-');var m=['Jan','Feb','Mar
    Catatan: id siswa = id baris tabel `students` (string).
 */
 var SB_SIAP=false;
-var db={students:[],pagi:{},poin:{},hitung:{},jadwal:{},sisa:{}};
+var db={students:[],pagi:{},pagiJam:{},poin:{},hitung:{},jadwal:{},sisa:{}};
 
 /** Muat semua data dari Supabase ke dalam `db`. */
 async function muatDariServer(){
@@ -224,7 +242,7 @@ async function muatDariServer(){
   var resA = await window.SBPag.listApresiasiSiswa();
   if(resA.error){ return resA; }
 
-  var baru = { students:[], pagi:{}, poin:{}, hitung:{}, jadwal:{}, sisa:{} };
+  var baru = { students:[], pagi:{}, pagiJam:{}, poin:{}, hitung:{}, jadwal:{}, sisa:{} };
   (resA.items || []).forEach(function(r){
     var id=String(r.id);
     baru.students.push({ id:id, nama:r.nama||'', nis:r.nis||'', kelas:r.kelas||'', jurusan:r.jurusan||'', jk:r.jk||'L', telp:r.telp||'', alamat:r.alamat||'' });
@@ -233,11 +251,14 @@ async function muatDariServer(){
     baru.sisa[id] = Number(r.sisa)||0;
   });
 
-  // 2. Riwayat catatan pagi (list_morning_records) -> db.pagi[tanggal]=student_id
+  // 2. Riwayat catatan pagi (list_morning_records) -> pagi + pagiJam
   var resM = await window.SBPag.listMorningRecords();
   if(!resM.error && resM.items){
     resM.items.forEach(function(m){
       baru.pagi[m.tanggal] = String(m.student_id);
+      // Jam daftar presisi: pakai jam check-in siswa; bila null (catatan
+      // manual tanpa check-in) fallback ke jam catatan dibuat.
+      baru.pagiJam[m.tanggal] = m.checkin_at || m.recorded_at || null;
     });
   }
 
@@ -342,8 +363,9 @@ async function recordMorning(id){
   await muatDariServer();
   renderSemua();
 }
-function renderMorning(){var date=$('#dateInput').value,q=$('#morningSearch').value.toLowerCase(),chosen=currentMorning(),list=sorted().filter(function(s){return !q||(s.nama+' '+s.kelas+' '+s.nis).toLowerCase().indexOf(q)>-1});var count=list.length;var total=Object.keys(db.pagi).length;$('#dailyStats').innerHTML='<div class="stat"><span>Tanggal</span><b style="font-size:1rem">'+dateText(date)+'</b></div><div class="stat"><span>Status</span><b style="font-size:1rem">'+(chosen?'Tercatat':'Belum')+'</b></div><div class="stat"><span>Total Catatan</span><b>'+total+'</b></div>';if(!db.students.length){$('#morningList').innerHTML='<div class="empty">Tambahkan siswa terlebih dahulu.</div>';return}if(!count){$('#morningList').innerHTML='<div class="empty">Siswa tidak ditemukan.</div>';return}$('#morningList').innerHTML=list.map(function(s){var n=morningCount(s.id),po=db.poin[s.id]||0,selected=chosen===s.id;return '<div class="student-card '+(selected?'selected':'')+(po>0?' gold':'')+'"><div><div class="student-name">'+esc(s.nama)+'</div><div class="student-meta">'+esc(s.kelas||'-')+(s.jurusan?' · '+esc(s.jurusan):'')+'</div></div>'+(po>0?'<span class="badge-po" style="margin:4px 0 0">&#127942; '+po+' poin</span>':'')+(selected?'<span class="tag" style="margin-top:6px">Siswa Pagi Hari Ini</span>':'')+'<div class="progress-label"><span>Menuju apresiasi</span><b>'+n+'/2</b></div><div class="progress"><i style="width:'+(n?50:0)+'%"></i></div><button class="btn '+(selected?'soft':'primary')+' small" onclick="recordMorning(\''+s.id+'\')">'+(selected?'Batalkan Pilihan':'Pilih Siswa Ini')+'</button></div>'}).join('')}
-function renderBoard(){var list=sorted().sort(function(a,b){return (db.poin[b.id]||0)-(db.poin[a.id]||0)||morningCount(b.id)-morningCount(a.id)||a.nama.localeCompare(b.nama,'id')});var q=$('#boardSearch').value.toLowerCase();var filtered=list.filter(function(s){return !q||(s.nama+' '+s.kelas).toLowerCase().indexOf(q)>-1});var top=list[0];$('#boardStats').innerHTML='<div class="stat"><span>Total Siswa</span><b>'+db.students.length+'</b></div><div class="stat"><span>Total Poin</span><b>'+list.reduce(function(a,s){return a+(db.poin[s.id]||0)},0)+'</b></div><div class="stat"><span>Pemimpin</span><b style="font-size:1rem">'+(top?esc(top.nama):'-')+'</b></div>';$('#leaderboard').innerHTML=filtered.length?filtered.map(function(s,i){var p=db.poin[s.id]||0,n=morningCount(s.id),medal=i===0?'&#129351;':i===1?'&#129352;':i===2?'&#129353;':String(i+1);return '<div class="rank"><div class="rank-num">'+medal+'</div><div class="rank-info"><strong>'+esc(s.nama)+'</strong><span>'+esc(s.kelas||'-')+' · Berangkat pagi '+n+' kali</span></div><div class="points">'+p+' poin</div></div>'}).join(''):'<div class="empty">Belum ada data apresiasi.</div>';var dates=Object.keys(db.pagi).sort().reverse();$('#history').innerHTML=dates.length?dates.map(function(d){var s=db.students.find(function(x){return x.id===db.pagi[d]});return '<div class="history-row"><span>'+dateText(d)+'</span><b>'+(s?esc(s.nama):'Data dihapus')+'</b></div>'}).join(''):'<div class="empty">Belum ada riwayat siswa pagi.</div>'}
+function renderMorning(){var date=$('#dateInput').value,q=$('#morningSearch').value.toLowerCase(),chosen=currentMorning(),list=sorted().filter(function(s){return !q||(s.nama+' '+s.kelas+' '+s.nis).toLowerCase().indexOf(q)>-1});var count=list.length;var total=Object.keys(db.pagi).length;$('#dailyStats').innerHTML='<div class="stat"><span>Tanggal</span><b style="font-size:1rem">'+dateText(date)+'</b></div><div class="stat"><span>Status</span><b style="font-size:1rem">'+(chosen?'Tercatat':'Belum')+'</b></div><div class="stat"><span>Total Catatan</span><b>'+total+'</b></div>'+
+    '<div class="stat"><span>Jam Tercatat</span><b style="font-size:1rem">'+(chosen?jamWIB(db.pagiJam[date]):'-')+'</b></div>';if(!db.students.length){$('#morningList').innerHTML='<div class="empty">Tambahkan siswa terlebih dahulu.</div>';return}if(!count){$('#morningList').innerHTML='<div class="empty">Siswa tidak ditemukan.</div>';return}$('#morningList').innerHTML=list.map(function(s){var n=morningCount(s.id),po=db.poin[s.id]||0,selected=chosen===s.id;return '<div class="student-card '+(selected?'selected':'')+(po>0?' gold':'')+'"><div><div class="student-name">'+esc(s.nama)+'</div><div class="student-meta">'+esc(s.kelas||'-')+(s.jurusan?' · '+esc(s.jurusan):'')+'</div></div>'+(po>0?'<span class="badge-po" style="margin:4px 0 0">&#127942; '+po+' poin</span>':'')+(selected?'<span class="tag" style="margin-top:6px">Siswa Pagi Hari Ini'+(chosen&&db.pagiJam[date]?' &middot; '+jamWIB(db.pagiJam[date]):'')+'</span>':'')+'<div class="progress-label"><span>Menuju apresiasi</span><b>'+n+'/2</b></div><div class="progress"><i style="width:'+(n?50:0)+'%"></i></div><button class="btn '+(selected?'soft':'primary')+' small" onclick="recordMorning(\''+s.id+'\')">'+(selected?'Batalkan Pilihan':'Pilih Siswa Ini')+'</button></div>'}).join('')}
+function renderBoard(){var list=sorted().sort(function(a,b){return (db.poin[b.id]||0)-(db.poin[a.id]||0)||morningCount(b.id)-morningCount(a.id)||a.nama.localeCompare(b.nama,'id')});var q=$('#boardSearch').value.toLowerCase();var filtered=list.filter(function(s){return !q||(s.nama+' '+s.kelas).toLowerCase().indexOf(q)>-1});var top=list[0];$('#boardStats').innerHTML='<div class="stat"><span>Total Siswa</span><b>'+db.students.length+'</b></div><div class="stat"><span>Total Poin</span><b>'+list.reduce(function(a,s){return a+(db.poin[s.id]||0)},0)+'</b></div><div class="stat"><span>Pemimpin</span><b style="font-size:1rem">'+(top?esc(top.nama):'-')+'</b></div>';$('#leaderboard').innerHTML=filtered.length?filtered.map(function(s,i){var p=db.poin[s.id]||0,n=morningCount(s.id),medal=i===0?'&#129351;':i===1?'&#129352;':i===2?'&#129353;':String(i+1);return '<div class="rank"><div class="rank-num">'+medal+'</div><div class="rank-info"><strong>'+esc(s.nama)+'</strong><span>'+esc(s.kelas||'-')+' · Berangkat pagi '+n+' kali</span></div><div class="points">'+p+' poin</div></div>'}).join(''):'<div class="empty">Belum ada data apresiasi.</div>';var dates=Object.keys(db.pagi).sort().reverse();$('#history').innerHTML=dates.length?dates.map(function(d){var s=db.students.find(function(x){return x.id===db.pagi[d]});var jm=db.pagiJam&&db.pagiJam[d]?jamWIB(db.pagiJam[d]):'';return '<div class="history-row"><span>'+dateText(d)+(jm?' &middot; '+jm:'')+'</span><b>'+(s?esc(s.nama):'Data dihapus')+'</b></div>'}).join(''):'<div class="empty">Belum ada riwayat siswa pagi.</div>'}
 async function resetMorning(){
   var date=$('#dateInput').value;
   if(!date||!db.pagi[date]){alert('Belum ada catatan pada tanggal ini.');return}

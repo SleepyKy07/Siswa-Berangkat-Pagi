@@ -630,6 +630,25 @@ create table if not exists morning_records (
   unique (student_id, tanggal)
 );
 
+-- `checkin_at` = jam SERVER saat siswa mendaftar (dari check_ins.checked_in_at).
+-- Tampil di halaman apresiasi sebagai "jam daftar" (jam:menit:detik WIB).
+-- Null bila tidak ada check-in terkait (mis. catatan manual murni) —
+-- tampilan memakai fallback `recorded_at` (jam saat admin mencatat).
+alter table morning_records add column if not exists checkin_at timestamptz;
+
+-- Isi ulang data lama: ambil jam check-in TERAWAL siswa pada tanggal yang sama.
+-- Idempotent — hanya menimpa baris yang checkin_at-nya masih NULL.
+update morning_records m
+set checkin_at = sub.jam
+from (
+  select c.student_id, c.checkin_date, min(c.checked_in_at) as jam
+  from check_ins c
+  group by c.student_id, c.checkin_date
+) sub
+where m.student_id = sub.student_id
+  and m.tanggal = sub.checkin_date
+  and m.checkin_at is null;
+
 create index if not exists idx_morning_tanggal on morning_records(tanggal);
 create index if not exists idx_morning_student on morning_records(student_id);
 
@@ -709,14 +728,15 @@ begin
   select s.nama, coalesce(s.kelas, '') into v_nama, v_kelas
   from students s where s.id = v_ci.student_id;
 
-  insert into morning_records (student_id, tanggal, nama, kelas, source)
-  values (v_ci.student_id, v_ci.checkin_date, coalesce(v_nama, ''), coalesce(v_kelas, ''), 'checkin')
+  insert into morning_records (student_id, tanggal, nama, kelas, source, checkin_at)
+  values (v_ci.student_id, v_ci.checkin_date, coalesce(v_nama, ''), coalesce(v_kelas, ''), 'checkin', v_ci.checked_in_at)
   on conflict (student_id, tanggal) do nothing;
 
   return jsonb_build_object(
     'status', 'tercatat',
     'student_id', v_ci.student_id,
     'tanggal', v_ci.checkin_date,
+    'jam_daftar', v_ci.checked_in_at,
     'ringkasan', hitung_poin_siswa(v_ci.student_id)
   );
 end;
@@ -766,12 +786,13 @@ returns table (
   tanggal date,
   nama text,
   kelas text,
-  recorded_at timestamptz
+  recorded_at timestamptz,
+  checkin_at timestamptz
 )
 language sql
 security definer
 as $$
-  select m.id, m.student_id, m.tanggal, m.nama, m.kelas, m.recorded_at
+  select m.id, m.student_id, m.tanggal, m.nama, m.kelas, m.recorded_at, m.checkin_at
   from morning_records m
   where (p_dari is null or m.tanggal >= p_dari)
     and (p_sampai is null or m.tanggal <= p_sampai)
@@ -780,6 +801,9 @@ $$;
 
 -- 12g. Catat "paling pagi" secara manual (untuk data lama / koreksi admin).
 -- p_identitas boleh berupa id siswa (angka) atau NAMA siswa.
+-- checkin_at diisi OTOMATIS bila siswa punya check-in pada tanggal itu
+-- (jam daftar sebenarnya); bila tidak ada, dibiarkan null dan tampilan
+-- memakai fallback recorded_at (jam saat admin mencatat).
 create or replace function tambah_morning_manual(p_identitas text, p_tanggal date)
 returns jsonb
 language plpgsql
@@ -788,6 +812,7 @@ as $$
 declare
   v_student students;
   v_id bigint;
+  v_checkin_at timestamptz;
 begin
   if p_tanggal is null then
     return jsonb_build_object('error', 'TANGGAL_WAJIB_DIISI');
@@ -815,14 +840,20 @@ begin
     return jsonb_build_object('error', 'SISWA_TIDAK_DITEMUKAN');
   end if;
 
-  insert into morning_records (student_id, tanggal, nama, kelas, source)
-  values (v_student.id, p_tanggal, v_student.nama, coalesce(v_student.kelas, ''), 'manual')
+  -- Jam daftar dari check-in siswa pada tanggal tsb (bila ada)
+  select min(c.checked_in_at) into v_checkin_at
+  from check_ins c
+  where c.student_id = v_student.id and c.checkin_date = p_tanggal;
+
+  insert into morning_records (student_id, tanggal, nama, kelas, source, checkin_at)
+  values (v_student.id, p_tanggal, v_student.nama, coalesce(v_student.kelas, ''), 'manual', v_checkin_at)
   on conflict (student_id, tanggal) do nothing;
 
   return jsonb_build_object(
     'success', true,
     'student_id', v_student.id,
     'nama', v_student.nama,
+    'jam_daftar', v_checkin_at,
     'ringkasan', hitung_poin_siswa(v_student.id)
   );
 end;

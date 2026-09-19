@@ -275,10 +275,15 @@ Halaman apresiasi kini **tersimpan di server** (bukan localStorage) sehingga bis
 dibuka dari perangkat mana pun dan tidak hilang bila cache dibersihkan:
 
 - **Data siswa** (nama, NIS, kelas, jurusan, JK, telp, alamat) → tabel `students`
-- **Catatan "paling pagi"** → tabel `morning_records` (1 siswa per tanggal)
+- **Catatan "paling pagi"** → tabel `morning_records` (1 siswa per tanggal), termasuk
+  **jam daftar presisi** (`checkin_at` = jam server saat siswa check-in; fallback
+  `recorded_at` bila catatan manual tanpa check-in)
 - **Jadwal piket OSIS** → tabel `piket_schedule` (maks 2 petugas per tanggal)
 - **Poin apresiasi**: setiap **2x tercatat paling pagi = 1 poin** (dihitung server
   lewat `hitung_poin_siswa`, di-cache di kolom `students.poin_apresiasi`)
+- **Jam ditampilkan presisi** (jam:menit:detik) dan **selalu WIB** (`Asia/Jakarta`)
+  di kartu "Catat Pagi" (stat *Jam Tercatat* + kartu siswa terpilih) dan di
+  *Riwayat Siswa Pagi* — tidak ikut zona waktu perangkat pembuka halaman
 - **Import CSV** menulis langsung ke server; baris dengan NIS duplikat dilewati
 - **Cadangkan** mengunduh data server lengkap (siswa + pagi + jadwal) sebagai JSON
   (fitur *Pulihkan* dihapus — data master ada di server)
