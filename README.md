@@ -55,7 +55,7 @@ Namun ini **tidak merugikan**, karena keabsahan absensi ditentukan server:
 |---------|--------|
 | Sesi harus AKTIF | `submit_checkin_manual()` menolak bila NONAKTIF / di luar jadwal |
 | Anti-duplikat | 1 nama+kelas = 1 check-in per hari |
-| Waktu server | `current_date` & `now()` dari Postgres, jam HP tidak berpengaruh |
+| Waktu server | `now_wib()` (WIB, `Asia/Jakarta`) dari Postgres, jam HP tidak berpengaruh |
 
 Jadi: buka lewat riwayat **boleh**, tetapi **tidak bisa** absen di luar jam dan
 **tidak bisa** dobel dalam satu hari.
@@ -340,6 +340,10 @@ Mode untuk ketiga fungsi di atas: `before` (sebelum tanggal), `today` (hari ini)
 
 ## Maintenance & Tips
 
+- **Jam server selalu WIB**: zona database Supabase umumnya **UTC**, jadi semua
+  evaluasi waktu di SQL (jadwal sesi, tanggal check-in, "hari ini", hapus riwayat)
+  memakai helper `now_wib()` = `now() at time zone 'Asia/Jakarta'`. Hasil konsisten
+  WIB apa pun setting zona database-nya.
 - **Jam server**: `checkin_date` dan `checked_in_at` diambil dari server Postgres.
   Device siswa **tidak** dipercaya untuk waktu check-in.
 - **Backup data**: Supabase Dashboard → Export data JSON/SQL kapan saja.
@@ -383,6 +387,12 @@ atau sedang offline.
     Papan* menjadi satu panggilan server (`reset_morning_all`).
     **Jalankan ulang `supabase/setup.sql`** di SQL Editor untuk project yang
     sudah berjalan (semua perubahan bersifat idempotent).
+12. **Semua waktu dipaksa WIB (`Asia/Jakarta`)**: helper baru `now_wib()` menggantikan
+    `localtime`/`current_date`/`localtimestamp` di seluruh fungsi & default kolom
+    (`check_ins.checkin_date`, `morning_records.tanggal`). Berguna karena zona DB
+    Supabase default UTC — jadwal sesi, tanggal check-in, dan hapus riwayat kini
+    selalu mengikuti WIB. `setup.sql` juga mengoreksi data lama (tanggal check-in &
+    catatan pagi) lalu menghitung ulang poin. **Jalankan ulang `setup.sql`**.
 
 ## Cara Menjalankan Secara Lokal (untuk testing)
 

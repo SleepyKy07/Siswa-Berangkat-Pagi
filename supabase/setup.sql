@@ -8,6 +8,21 @@
    5. Masukkan SUPABASE_CONFIG ke assets/js/supabase-config.js
    ================================================================ */
 
+-- 0. HELPER WAKTU WIB (didefinisikan paling awal — dipakai tabel & fungsi).
+-- Zona waktu database Supabase umumnya UTC — bukan WIB. Semua evaluasi
+-- jadwal & tanggal HARUS memakai helper ini agar sesuai waktu Indonesia
+-- (Asia/Jakarta) apa pun setting zona database-nya.
+--   now_wib()        : timestamp WIB saat ini (tanpa zona)
+--   now_wib()::date  : tanggal hari ini menurut WIB
+--   now_wib()::time  : jam saat ini menurut WIB
+create or replace function now_wib()
+returns timestamp
+language sql
+stable
+as $$
+  select (now() at time zone 'Asia/Jakarta');
+$$;
+
 -- 1. Tabel sessions (setiap project punya 1 baris id=1)
 create table if not exists sessions (
   id int primary key default 1 check (id = 1),
@@ -36,6 +51,7 @@ on conflict (id) do nothing;
 -- Perbaikan: jika schedule NULL, hasil FALSE (bukan NULL) agar konsisten di frontend
 -- `override_reason` ikut dikirim agar bisa ditampilkan sebagai pesan custom
 -- ketika admin menutup sesi (mis. "Absensi diliburkan karena kegiatan").
+-- Jadwal (jam mulai/selesai) dievaluasi dalam WIB, bukan zona database (UTC).
 create or replace function get_session_status()
 returns jsonb
 language sql
@@ -46,13 +62,13 @@ as $$
     case
       when s.manual_override is not null then (s.manual_override = 'AKTIF')
       when s.scheduled_starts_at is null or s.scheduled_ends_at is null then false
-      else (localtime >= s.scheduled_starts_at and localtime < s.scheduled_ends_at)
+      else (now_wib()::time >= s.scheduled_starts_at and now_wib()::time < s.scheduled_ends_at)
     end,
     'manual_override', s.manual_override,
     'override_reason', s.override_reason,
     'scheduled_starts_at', to_char(s.scheduled_starts_at, 'HH24:MI'),
     'scheduled_ends_at', to_char(s.scheduled_ends_at, 'HH24:MI'),
-    'server_time', to_char(localtimestamp, 'YYYY-MM-DD HH24:MI:SS')
+    'server_time', to_char(now_wib(), 'YYYY-MM-DD HH24:MI:SS')
   )
   from sessions s
   where s.id = 1
@@ -74,10 +90,12 @@ create table if not exists students (
 alter table students add column if not exists aktif boolean not null default true;
 
 -- 4. Tabel check_ins (rekam absensi server-validated)
+-- checkin_date = tanggal menurut WIB (fungsi insert selalu mengisi eksplisit;
+-- default diubah dari current_date ke now_wib() karena zona DB = UTC).
 create table if not exists check_ins (
   id bigint generated always as identity primary key,
   student_id bigint references students(id) on delete cascade not null,
-  checkin_date date default current_date not null,
+  checkin_date date default now_wib()::date not null,
   checked_in_at timestamptz default now() not null,
   selfie_path text default null,
   location_lat double precision default null,
@@ -88,6 +106,16 @@ create table if not exists check_ins (
   location_reason text default null,
   unique (student_id, checkin_date)
 );
+-- Perbaiki default untuk tabel yang sudah ada (dari current_date/UTC ke WIB)
+do $$
+begin
+  if exists (select 1 from information_schema.columns
+             where table_name = 'check_ins' and column_name = 'checkin_date'
+               and column_default like '%current_date%') then
+    alter table check_ins alter column checkin_date set default now_wib()::date;
+  end if;
+end
+$$;
 
 -- 5. Index untuk performa query check-in harian
 create index if not exists idx_checkins_date on check_ins(checkin_date);
@@ -248,15 +276,15 @@ begin
     return jsonb_build_object('error', 'SISWA_TIDAK_DITEMUKAN');
   end if;
 
-  -- 3. Anti-duplikat: sudah check-in hari ini?
-  if exists (select 1 from check_ins c where c.student_id = p_student_id and c.checkin_date = current_date) then
+  -- 3. Anti-duplikat: sudah check-in hari ini? (tanggal WIB)
+  if exists (select 1 from check_ins c where c.student_id = p_student_id and c.checkin_date = now_wib()::date) then
     return jsonb_build_object('error', 'SUDAH_CHECKIN_HARI_INI');
   end if;
 
-  -- 4. Simpan dengan tanggal & jam SERVER
+  -- 4. Simpan dengan tanggal & jam SERVER (tanggal dievaluasi WIB)
   begin
     insert into check_ins (student_id, checkin_date, checked_in_at, selfie_path)
-    values (p_student_id, current_date, now(), p_selfie_path)
+    values (p_student_id, now_wib()::date, now(), p_selfie_path)
     returning * into v_row;
   exception when unique_violation then
     -- Balapan dua permintaan bersamaan
@@ -274,14 +302,14 @@ begin
 end;
 $$;
 
--- 8d. Tanggal server hari ini (WIB/Asia/Jakarta sesuai zona DB).
+-- 8d. Tanggal server hari ini — selalu WIB (Asia/Jakarta), apa pun zona DB.
 -- Dipakai dashboard & klien agar tidak bergantung jam device siswa.
 create or replace function get_server_date()
 returns text
 language sql
 security definer
 as $$
-  select to_char(current_date, 'YYYY-MM-DD');
+  select to_char(now_wib()::date, 'YYYY-MM-DD');
 $$;
 
 -- 8e. (DIHAPUS) get_selfie_url()
@@ -344,19 +372,19 @@ begin
     return jsonb_build_object('error', 'KELAS_TERLALU_PANJANG');
   end if;
 
-  -- 3. Anti-duplikat: nama + kelas sama hari ini
+  -- 3. Anti-duplikat: nama + kelas sama hari ini (tanggal WIB)
   if exists (
     select 1 from check_ins c
-    where c.checkin_date = current_date
+    where c.checkin_date = now_wib()::date
       and lower(trim(coalesce(c.nama_manual, ''))) = lower(v_nama)
       and lower(trim(coalesce(c.kelas_manual, ''))) = lower(v_kelas)
   ) then
     return jsonb_build_object('error', 'SUDAH_CHECKIN_HARI_INI');
   end if;
 
-  -- 4. Simpan check-in (tanggal & jam server)
+  -- 4. Simpan check-in (tanggal dievaluasi WIB; checked_in_at tetap timestamp absolut)
   insert into check_ins (student_id, checkin_date, checked_in_at, selfie_path, nama_manual, kelas_manual)
-  values (null, current_date, now(), p_selfie_path, v_nama, v_kelas)
+  values (null, now_wib()::date, now(), p_selfie_path, v_nama, v_kelas)
   returning * into v_row;
 
   -- 5. Catat ke pending_students untuk ditinjau admin
@@ -498,7 +526,7 @@ as $$
     (c.student_id is null) as is_pending
   from check_ins c
   left join students s on s.id = c.student_id
-  where c.checkin_date = current_date
+  where c.checkin_date = now_wib()::date
   order by c.checked_in_at asc;
 $$;
 
@@ -526,8 +554,8 @@ as $$
   where c.selfie_path is not null
     and (
       (p_mode = 'before' and p_before_date is not null and c.checkin_date < p_before_date)
-      or (p_mode = 'today' and c.checkin_date = current_date)
-      or (p_mode = 'all_before' and c.checkin_date < current_date)
+      or (p_mode = 'today' and c.checkin_date = now_wib()::date)
+      or (p_mode = 'all_before' and c.checkin_date < now_wib()::date)
       or (p_mode = 'all')
     );
 $$;
@@ -543,16 +571,16 @@ as $$
       select count(*) from check_ins c
       where
         (p_mode = 'before' and p_before_date is not null and c.checkin_date < p_before_date)
-        or (p_mode = 'today' and c.checkin_date = current_date)
-        or (p_mode = 'all_before' and c.checkin_date < current_date)
+        or (p_mode = 'today' and c.checkin_date = now_wib()::date)
+        or (p_mode = 'all_before' and c.checkin_date < now_wib()::date)
         or (p_mode = 'all')
     ),
     'pending', (
       select count(*) from pending_students p
       where p.status in ('approved', 'rejected')
         and (
-          (p_mode = 'before' and p_before_date is not null and p.created_at::date < p_before_date)
-          or (p_mode = 'today' and p.created_at::date = current_date)
+          (p_mode = 'before' and p_before_date is not null and (p.created_at at time zone 'Asia/Jakarta')::date < p_before_date)
+          or (p_mode = 'today' and (p.created_at at time zone 'Asia/Jakarta')::date = now_wib()::date)
           or p_mode in ('all_before', 'all')
         )
     )
@@ -585,8 +613,8 @@ begin
   delete from pending_students p
   where p.status in ('approved', 'rejected')
     and (
-      (p_mode = 'before' and p_before_date is not null and p.created_at::date < p_before_date)
-      or (p_mode = 'today' and p.created_at::date = current_date)
+      (p_mode = 'before' and p_before_date is not null and (p.created_at at time zone 'Asia/Jakarta')::date < p_before_date)
+      or (p_mode = 'today' and (p.created_at at time zone 'Asia/Jakarta')::date = now_wib()::date)
       or p_mode in ('all_before', 'all')
     );
   get diagnostics v_pending = row_count;
@@ -595,8 +623,8 @@ begin
   delete from check_ins c
   where
     (p_mode = 'before' and p_before_date is not null and c.checkin_date < p_before_date)
-    or (p_mode = 'today' and c.checkin_date = current_date)
-    or (p_mode = 'all_before' and c.checkin_date < current_date)
+    or (p_mode = 'today' and c.checkin_date = now_wib()::date)
+    or (p_mode = 'all_before' and c.checkin_date < now_wib()::date)
     or (p_mode = 'all');
   get diagnostics v_checkins = row_count;
 
@@ -906,6 +934,79 @@ begin
     'terhapus', v_terhapus
   );
 end;
+$$;
+
+/* ================================================================
+   12j. KOREKSI DATA LAMA: tanggal yang tergeser karena zona UTC.
+   ================================================================
+   Sebelum fungsi now_wib() ada, checkin_date dievaluasi memakai zona
+   database (UTC) — siswa yang check-in pagi (sebelum 07:00 WIB) tercatat
+   dengan tanggal KEMARIN. Blok ini menggeser tanggal ke kalender WIB:
+     check_ins.checkin_date   <- (checked_in_at at 'Asia/Jakarta')::date
+     morning_records.tanggal  <- (checkin_at   at 'Asia/Jakarta')::date
+                               (hanya bila checkin_at terisi)
+   Idempotent. Bila pergeseran membuat baris bertabrakan pada constraint
+   unik, baris dengan id lebih besar dihapus (sisakan satu per hari).
+   Cache poin semua siswa dihitung ulang setelahnya.
+   ================================================================ */
+
+-- 1) check_ins: hapus duplikat hari-WIB (id lebih besar kalah).
+--    Untuk siswa terdaftar (student_id terisi) cukup pakai student_id;
+--    untuk check-in manual (student_id NULL) pakai nama+kelas ternormalisasi
+--    agar tidak salah menghapus siswa berbeda.
+delete from check_ins c
+using check_ins x
+where (c.checked_in_at at time zone 'Asia/Jakarta')::date
+    = (x.checked_in_at at time zone 'Asia/Jakarta')::date
+  and x.id < c.id
+  and (
+    (c.student_id is not null and c.student_id = x.student_id)
+    or (
+      c.student_id is null and x.student_id is null
+      and coalesce(c.nama_manual, '') <> ''
+      and lower(trim(coalesce(c.nama_manual, '')))  = lower(trim(coalesce(x.nama_manual, '')))
+      and lower(trim(coalesce(c.kelas_manual, ''))) = lower(trim(coalesce(x.kelas_manual, '')))
+    )
+  );
+
+-- 2) Geser checkin_date ke tanggal WIB sesuai checked_in_at.
+--    Setelah langkah 1, tanggal WIB per siswa terdaftar dijamin unik.
+update check_ins
+set checkin_date = (checked_in_at at time zone 'Asia/Jakarta')::date
+where checkin_date <> (checked_in_at at time zone 'Asia/Jakarta')::date;
+
+-- 3) morning_records: tanggal dihitung dari checkin_at (timestamp absolut).
+--    a) hapus duplikat hari-WIB (id lebih besar kalah) — memakai tanggal
+--       tujuan (dari checkin_at bila ada, selain itu tanggal apa adanya).
+with mapped as (
+  select id,
+         coalesce((checkin_at at time zone 'Asia/Jakarta')::date, tanggal) as tgl_final,
+         row_number() over (
+           partition by student_id,
+             coalesce((checkin_at at time zone 'Asia/Jakarta')::date, tanggal)
+           order by id
+         ) as rn
+  from morning_records
+)
+delete from morning_records m
+using mapped
+where m.id = mapped.id and mapped.rn > 1;
+
+--    b) geser tanggal ke WIB (hanya baris yang punya checkin_at).
+update morning_records
+set tanggal = (checkin_at at time zone 'Asia/Jakarta')::date
+where checkin_at is not null
+  and tanggal <> (checkin_at at time zone 'Asia/Jakarta')::date;
+
+-- 4) Hitung ulang cache poin SEMUA siswa dari morning_records.
+do $$
+declare
+  r record;
+begin
+  for r in select distinct student_id from morning_records loop
+    perform hitung_poin_siswa(r.student_id);
+  end loop;
+end
 $$;
 
 /* ================================================================
