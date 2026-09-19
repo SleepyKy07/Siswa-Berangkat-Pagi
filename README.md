@@ -343,7 +343,20 @@ Mode untuk ketiga fungsi di atas: `before` (sebelum tanggal), `today` (hari ini)
 - **Jam server**: `checkin_date` dan `checked_in_at` diambil dari server Postgres.
   Device siswa **tidak** dipercaya untuk waktu check-in.
 - **Backup data**: Supabase Dashboard → Export data JSON/SQL kapan saja.
-- **Backup frontend**: Semua file lama (`index.html`, `berangkat-pagi/`, `jadwal-gerbang/`, `proker-2/`) tetap berjalan.
+- **Backup frontend**: Semua file lama (`index.html`, `berangkat-pagi/`, `jadwal-gerbang/`) tetap berjalan. `proker-2/` kini menjadi **halaman pengalihan** ke `checkin/dashboard.html`.
+
+## Portal Program Kerja
+
+Halaman depan (`index.html`) menampilkan kartu program:
+
+- **Berangkat Pagi** → `berangkat-pagi/` (halaman apresiasi, PIN)
+- **Jadwal Petugas Gerbang** → `jadwal-gerbang/`
+- **Dashboard Absensi (Admin)** → `checkin/dashboard.html` (PIN) — tidak perlu
+  lagi mengetik URL manual; slot `proker-2/` otomatis dialihkan ke sini.
+
+Statistik **Siswa Terdata** & **Apresiasi Diberikan** diambil langsung dari
+server (`list_apresiasi_siswa`) — tampil `-` bila backend belum dikonfigurasi
+atau sedang offline.
 - **Jika backend error**: halaman `/checkin` menampilkan pesan jelas tanpa crash.
 
 ## Perubahan dari Versi Sebelumnya

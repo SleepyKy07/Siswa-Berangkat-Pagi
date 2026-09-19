@@ -2,31 +2,34 @@
    PORTAL PROGRAM KERJA OSIS — portal.js
    ================================================================
    Cara menambah program kerja baru:
-   1. Isi PATH_TAMBALAN = <nama folder program>, contoh "proker-3"
-   2. Pilih ikon/emoji bebas untuk 'ikon'
-   3. Isi 'judul', 'deskripsi'
-   4. Dua warna: 'w1' (utama) & 'w2' (sekunder)
+   1. Tambah objek baru di PROGRAM (ikon, judul, deskripsi, target, warna)
+   2. Dua warna: 'w1' (utama) & 'w2' (sekunder)
    ================================================================ */
 (function () {
   'use strict';
 
-  function ambilBagian(k, def) {
-    try {
-      var d = JSON.parse(localStorage.getItem('apresiasiSiswaPagiV1'));
-      return (d && d[k]) ? d[k] : def;
-    } catch (e) { return def; }
-  }
+  // Statistik lama (localStorage) tidak dipakai lagi — data apresiasi
+  // tersimpan di Supabase. Angka diambil dari server (list_apresiasi_siswa);
+  // bila backend belum dikonfigurasi/offline, tampil '-'.
+  function muatStatistikServer() {
+    var jmlS = document.getElementById('jml-siswa');
+    var jmlA = document.getElementById('jml-apresiasi');
+    if (!jmlS && !jmlA) return;
+    if (!window.SBPag) { tandaiGagal(); return; }
 
-  function ambilSiswa() {
-    var arr = ambilBagian('students', []);
-    return Array.isArray(arr) ? arr.length : 0;
-  }
+    window.SBPag.init();
+    window.SBPag.listApresiasiSiswa().then(function (res) {
+      if (res && res.error) { tandaiGagal(); return; }
+      var items = (res && res.items) || [];
+      var totalPoin = items.reduce(function (a, s) { return a + (Number(s.poin) || 0); }, 0);
+      if (jmlS) jmlS.textContent = items.length;
+      if (jmlA) jmlA.textContent = totalPoin;
+    }).catch(function () { tandaiGagal(); });
 
-  function kunciApresiasi() {
-    var poin = ambilBagian('poin', {});
-    var n = 0;
-    for (var k in poin) if (poin[k]) n++;
-    return n;
+    function tandaiGagal() {
+      if (jmlS) { jmlS.textContent = '-'; jmlS.title = 'Gagal memuat dari server'; }
+      if (jmlA) { jmlA.textContent = '-'; jmlA.title = 'Gagal memuat dari server'; }
+    }
   }
 
   var PROGRAM = [
@@ -49,24 +52,20 @@
       status: "Aktif"
     },
     {
-      ikon: "\u{1F4CC}",
-      judul: "Program Kerja 2",
-      deskripsi: "Deskripsi sementara. Silakan ganti dengan tujuan dan kegiatan program kerja yang sebenarnya.",
-      target: "./proker-2/",
-      w1: "#0ea5e9",
-      w2: "#22d3ee",
-      status: "Segera"
+      ikon: "\u{1F510}",
+      judul: "Dashboard Absensi (Admin)",
+      deskripsi: "Kelola sesi absensi berangkat pagi: aktif/nonaktif, data pending, riwayat check-in & selfie. Halaman siswa (QR) tetap di /checkin.",
+      target: "./checkin/dashboard.html",
+      w1: "#0f766e",
+      w2: "#14b8a6",
+      status: "Aktif"
     }
   ];
 
   document.addEventListener('DOMContentLoaded', function () {
     var grid = document.getElementById('grid-proker');
-    var jmlS = document.getElementById('jml-siswa');
-    var jmlA = document.getElementById('jml-apresiasi');
     var jmlP = document.getElementById('jml-proker');
 
-    if (jmlS) jmlS.textContent = ambilSiswa();
-    if (jmlA) jmlA.textContent = kunciApresiasi();
     if (jmlP) jmlP.textContent = PROGRAM.filter(function (p) { return p.status === 'Aktif'; }).length;
 
     if (grid) {
@@ -80,5 +79,7 @@
           '</a>';
       }).join('');
     }
+
+    muatStatistikServer();
   });
 })();
