@@ -1010,102 +1010,21 @@ end
 $$;
 
 /* ================================================================
-   13. JADWAL PIKET PER TANGGAL (halaman apresiasi "Berangkat Pagi")
+   13. JADWAL PIKET — DIHAPUS
    ================================================================
-   Menggantikan penyimpanan localStorage untuk jadwal petugas piket.
-   Satu tanggal punya maks. 2 petugas (slot 1 & 2), disimpan sebagai
-   array id siswa. Bisa dibuka dari perangkat mana pun.
+   Jadwal petugas kini lengkap di program kerja "Jadwal Petugas
+   Gerbang" (jadwal-gerbang/). Bagian jadwal piket di halaman apresiasi
+   "Berangkat Pagi" dihapus, jadi tabel & fungsinya dibuang dari DB.
+
+   Blok drop ini idempotent — aman dijalankan berkali-kali, baik pada
+   project baru (belum pernah ada) maupun project lama yang sudah punya
+   tabel `piket_schedule`.
    ================================================================ */
 
--- 13a. Tabel jadwal piket: 1 baris per tanggal yang sudah diatur.
-create table if not exists piket_schedule (
-  tanggal date primary key,
-  student_ids bigint[] not null default '{}',
-  updated_at timestamptz default now()
-);
-
-create index if not exists idx_piket_tanggal on piket_schedule(tanggal);
-
--- 13b. Simpan petugas untuk satu tanggal (p_ids: array id siswa, maks 2,
---      id kosong/null dibuang otomatis).
-create or replace function simpan_piket_tanggal(p_tanggal date, p_ids bigint[])
-returns jsonb
-language plpgsql
-security definer
-as $$
-declare
-  v_bersih bigint[];
-begin
-  if p_tanggal is null then
-    return jsonb_build_object('error', 'TANGGAL_WAJIB_DIISI');
-  end if;
-
-  -- Buang null/id tidak valid & validasi ke tabel students
-  select coalesce(array_agg(s.id order by s.id), '{}') into v_bersih
-  from (
-    select distinct unnest(coalesce(p_ids, '{}')) as id
-  ) u
-  join students s on s.id = u.id
-  where u.id is not null;
-
-  if array_length(v_bersih, 1) > 2 then
-    return jsonb_build_object('error', 'MAKSIMAL_2_PETUGAS');
-  end if;
-
-  if array_length(v_bersih, 1) is null then
-    -- Tidak ada petugas valid -> hapus baris tanggal tsb
-    delete from piket_schedule where tanggal = p_tanggal;
-    return jsonb_build_object('success', true, 'tanggal', p_tanggal, 'petugas', 0);
-  end if;
-
-  insert into piket_schedule (tanggal, student_ids, updated_at)
-  values (p_tanggal, v_bersih, now())
-  on conflict (tanggal) do update
-    set student_ids = excluded.student_ids,
-        updated_at = now();
-
-  return jsonb_build_object(
-    'success', true,
-    'tanggal', p_tanggal,
-    'petugas', v_bersih
-  );
-end;
-$$;
-
--- 13c. Hapus jadwal petugas untuk satu tanggal.
-create or replace function hapus_piket_tanggal(p_tanggal date)
-returns jsonb
-language plpgsql
-security definer
-as $$
-begin
-  if p_tanggal is null then
-    return jsonb_build_object('error', 'TANGGAL_WAJIB_DIISI');
-  end if;
-
-  delete from piket_schedule where tanggal = p_tanggal;
-
-  if not found then
-    return jsonb_build_object('error', 'JADWAL_TIDAK_DITEMUKAN');
-  end if;
-
-  return jsonb_build_object('success', true, 'tanggal', p_tanggal);
-end;
-$$;
-
--- 13d. Seluruh jadwal piket (tanggal -> array id siswa).
-create or replace function list_piket()
-returns table (
-  tanggal date,
-  student_ids bigint[]
-)
-language sql
-security definer
-as $$
-  select p.tanggal, p.student_ids
-  from piket_schedule p
-  order by p.tanggal asc;
-$$;
+drop function if exists list_piket();
+drop function if exists hapus_piket_tanggal(date);
+drop function if exists simpan_piket_tanggal(date, bigint[]);
+drop table if exists piket_schedule;
 
 /* ================================================================
    9. CONTOH / CARA MENGISI DATA SISWA (tanpa NIS)

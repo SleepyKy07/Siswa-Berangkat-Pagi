@@ -917,68 +917,9 @@ var SBPag = (function () {
     }
   }
 
-  // --- JADWAL PIKET (per tanggal) ---
-
-  /**
-   * Seluruh jadwal piket: { 'YYYY-MM-DD': [id1, id2] }.
-   */
-  async function listPiket() {
-    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI', jadwal: {} };
-    try {
-      var res = await window.__sb.rpc('list_piket');
-      if (res.error) return { error: 'GAGAL_MUAT_PIKET', detail: res.error.message, jadwal: {} };
-      var out = {};
-      (res.data || []).forEach(function (r) {
-        var ids = (r.student_ids || []).map(function (x) { return String(x); });
-        out[r.tanggal] = ids;
-      });
-      return { jadwal: out, error: null };
-    } catch (err) {
-      console.error('[SB] listPiket exception:', err);
-      return { error: 'EXCEPTION', detail: err.message, jadwal: {} };
-    }
-  }
-
-  /**
-   * Simpan petugas (maks 2) untuk satu tanggal.
-   * @param {string} tanggal - 'YYYY-MM-DD'
-   * @param {Array<number|string>} ids - id siswa (elemen kosong dibuang)
-   */
-  async function simpanPiket(tanggal, ids) {
-    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
-    try {
-      var bersih = (ids || []).filter(function (x) { return x !== '' && x != null; })
-                              .map(function (x) { return Number(x); });
-      var res = await window.__sb.rpc('simpan_piket_tanggal', {
-        p_tanggal: tanggal,
-        p_ids: bersih
-      });
-      if (res.error) return { error: 'GAGAL_SIMPAN_PIKET', detail: res.error.message };
-      if (res.data && res.data.error) return { error: res.data.error, detail: res.data.error };
-      return { success: true, data: res.data };
-    } catch (err) {
-      console.error('[SB] simpanPiket exception:', err);
-      return { error: 'EXCEPTION', detail: err.message };
-    }
-  }
-
-  /**
-   * Hapus jadwal petugas untuk satu tanggal.
-   */
-  async function hapusPiket(tanggal) {
-    if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
-    try {
-      var res = await window.__sb.rpc('hapus_piket_tanggal', { p_tanggal: tanggal });
-      if (res.error) return { error: 'GAGAL_HAPUS_PIKET', detail: res.error.message };
-      if (res.data && res.data.error && res.data.error !== 'JADWAL_TIDAK_DITEMUKAN') {
-        return { error: res.data.error };
-      }
-      return { success: true, data: res.data };
-    } catch (err) {
-      console.error('[SB] hapusPiket exception:', err);
-      return { error: 'EXCEPTION', detail: err.message };
-    }
-  }
+  // --- JADWAL PIKET (dihapus) ---
+  // Fungsi jadwal piket OSIS dipindah ke program kerja "Jadwal Petugas Gerbang".
+  // Wrapper listPiket/simpanPiket/hapusPiket dihapus dari halaman apresiasi.
 
   // --- EXPORTS ---
 
@@ -1010,10 +951,7 @@ var SBPag = (function () {
     tambahMorningManual: tambahMorningManual,
     hapusMorningRecord: hapusMorningRecord,
     syncMorningFromCheckin: syncMorningFromCheckin,
-    resetMorningAll: resetMorningAll,
-    listPiket: listPiket,
-    simpanPiket: simpanPiket,
-    hapusPiket: hapusPiket
+    resetMorningAll: resetMorningAll
   };
 
   // Daftarkan sebagai global (untuk <script> biasa)

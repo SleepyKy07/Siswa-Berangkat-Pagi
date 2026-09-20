@@ -8,7 +8,7 @@ Program absensi sekolah menggunakan QR permanen + server-side validation.
 |----------|-----------|---------|
 | **Frontend** | HTML / CSS / Vanilla JS (GitHub Pages) | Semua file lama tetap bekerja tanpa perubahan |
 | **Backend** | Supabase (free tier) | Postgres + Storage + API |
-| **Database** | Postgres via Supabase | Tabel: sessions, students, check_ins, pending_students, morning_records, piket_schedule |
+| **Database** | Postgres via Supabase | Tabel: sessions, students, check_ins, pending_students, morning_records |
 | **Storage** | Supabase Storage bucket `selfies` | Privat, dilihat admin via signed URL singkat |
 | **Routing** | `/checkin` → status & aksi | QR permanen di gerbang |
 
@@ -278,14 +278,13 @@ dibuka dari perangkat mana pun dan tidak hilang bila cache dibersihkan:
 - **Catatan "paling pagi"** → tabel `morning_records` (1 siswa per tanggal), termasuk
   **jam daftar presisi** (`checkin_at` = jam server saat siswa check-in; fallback
   `recorded_at` bila catatan manual tanpa check-in)
-- **Jadwal piket OSIS** → tabel `piket_schedule` (maks 2 petugas per tanggal)
 - **Poin apresiasi**: setiap **2x tercatat paling pagi = 1 poin** (dihitung server
   lewat `hitung_poin_siswa`, di-cache di kolom `students.poin_apresiasi`)
 - **Jam ditampilkan presisi** (jam:menit:detik) dan **selalu WIB** (`Asia/Jakarta`)
   di kartu "Catat Pagi" (stat *Jam Tercatat* + kartu siswa terpilih) dan di
   *Riwayat Siswa Pagi* — tidak ikut zona waktu perangkat pembuka halaman
 - **Import CSV** menulis langsung ke server; baris dengan NIS duplikat dilewati
-- **Cadangkan** mengunduh data server lengkap (siswa + pagi + jadwal) sebagai JSON
+- **Cadangkan** mengunduh data server lengkap (siswa + pagi) sebagai JSON
   (fitur *Pulihkan* dihapus — data master ada di server)
 - **Reset Papan** menghapus seluruh catatan pagi + poin dalam satu panggilan
   (`reset_morning_all`)
@@ -328,9 +327,6 @@ dashboard: proteksi ringan, bukan keamanan sungguhan.
 | `tambah_morning_manual(p_identitas, p_tanggal)` | Catat "paling pagi" manual (koreksi/data lama) |
 | `hapus_morning_record(p_student_id, p_tanggal)` | Batalkan satu catatan pagi |
 | `reset_morning_all()` | Hapus SEMUA catatan pagi + nolkan poin (satu transaksi) |
-| `simpan_piket_tanggal(p_tanggal, p_ids)` | Simpan petugas piket per tanggal (maks 2) |
-| `hapus_piket_tanggal(p_tanggal)` | Hapus jadwal petugas satu tanggal |
-| `list_piket()` | Seluruh jadwal piket |
 
 Mode untuk ketiga fungsi di atas: `before` (sebelum tanggal), `today` (hari ini),
 `all_before` (semua riwayat), `all` (semua termasuk hari ini).
@@ -409,9 +405,9 @@ perlu pasang ulang.
  9. **Hapus riwayat** di dashboard admin (sebelum tanggal / semua, termasuk file selfie).
 10. Geolocation/anti-asrama tetap **dinonaktifkan** (kolom lokasi tetap ada di DB,
     tidak dipakai). Bisa diaktifkan kembali bila diperlukan.
-11. **Migrasi apresiasi "Berangkat Pagi" ke server**: data siswa, catatan pagi,
-    dan jadwal piket OSIS kini disimpan di Supabase (tabel `morning_records`,
-    `piket_schedule`, kolom lengkap di `students`), tidak lagi di localStorage.
+11. **Migrasi apresiasi "Berangkat Pagi" ke server**: data siswa, catatan pagi kini
+    disimpan di Supabase (tabel `morning_records`, kolom lengkap di `students`),
+    tidak lagi di localStorage.
     Halaman apresiasi dilindungi PIN (sama dengan dashboard admin), import CSV
     menulis ke server, fitur *Pulihkan* diganti *Cadangkan* saja, dan *Reset
     Papan* menjadi satu panggilan server (`reset_morning_all`).
@@ -423,6 +419,13 @@ perlu pasang ulang.
     Supabase default UTC — jadwal sesi, tanggal check-in, dan hapus riwayat kini
     selalu mengikuti WIB. `setup.sql` juga mengoreksi data lama (tanggal check-in &
     catatan pagi) lalu menghitung ulang poin. **Jalankan ulang `setup.sql`**.
+13. **Jadwal piket di halaman apresiasi dihapus**: karena jadwal petugas gerbang
+    sudah lengkap di program kerja terpisah, bagian jadwal piket (tombol 📅 Jadwal,
+    kalender, editor petugas, dan kotak "Petugas piket hari ini" di tab Catat Pagi)
+    dihapus dari `berangkat-pagi/index.html`. Tabel `piket_schedule` + fungsi
+    `simpan_piket_tanggal`/`hapus_piket_tanggal`/`list_piket` beserta wrapper
+    kliennya dibuang. **Jalankan ulang `setup.sql`** — bagian 13 kini berupa blok
+    `drop` idempotent yang membersihkan tabel & fungsi lama.
 
 ## Cara Menjalankan Secara Lokal (untuk testing)
 
