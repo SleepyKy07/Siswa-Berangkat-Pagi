@@ -5,7 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Portal OSIS">
 <title>Portal Program Kerja OSIS</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./assets/images/logo-osis.png">
+<link rel="icon" href="./assets/images/logo-osis.png">
 <link rel="stylesheet" href="./assets/css/portal.css">
 </head>
 <body>
@@ -44,10 +50,71 @@
   &copy; Organisasi Siswa Intra Sekolah &middot; Portal Program Kerja OSIS
 </footer>
 
+<!-- Tombol "Pasang Aplikasi" (muncul di Android/Chrome yang mendukung PWA) -->
+<div id="installBar" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:50;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:#0f766e;color:#fff;box-shadow:0 -6px 24px rgba(0,0,0,.18);align-items:center;justify-content:space-between;gap:12px;">
+  <span style="font-size:.85rem;font-weight:600;line-height:1.35">Pasang Portal OSIS di layar utama agar mudah dibuka.</span>
+  <span style="display:flex;gap:8px;flex-shrink:0">
+    <button type="button" id="btnInstall" style="border:0;border-radius:10px;padding:9px 16px;font:700 .8rem inherit;cursor:pointer;background:#fff;color:#0f766e;">Pasang</button>
+    <button type="button" id="btnInstallClose" aria-label="Tutup" style="border:0;border-radius:10px;padding:9px 12px;font:700 .9rem inherit;cursor:pointer;background:rgba(255,255,255,.2);color:#fff;">&times;</button>
+  </span>
+</div>
+
 <!-- Statistik portal (siswa & apresiasi) diambil dari server Supabase -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./assets/js/supabase-config.js?v=1"></script>
 <script src="./assets/js/supabase-client.js?v=1"></script>
 <script src="./assets/js/portal.js?v=2"></script>
+<script>
+// ============================================================
+// PWA: daftarkan service worker + tombol "Pasang Aplikasi"
+// ============================================================
+(function () {
+  // 1. Daftarkan service worker (butuh HTTPS — GitHub Pages sudah HTTPS)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js').catch(function () { /* diabaikan */ });
+    });
+  }
+
+  // 2. Tangkap prompt install bawaan Chrome (Android)
+  var bar = document.getElementById('installBar');
+  var btnInstall = document.getElementById('btnInstall');
+  var btnClose = document.getElementById('btnInstallClose');
+  var deferredPrompt = null;
+
+  // Jangan tampilkan lagi bila sebelumnya sudah ditutup
+  var dismissed = false;
+  try { dismissed = localStorage.getItem('sbpInstallDismissed') === '1'; } catch (e) { /* ignore */ }
+
+  if (btnClose) {
+    btnClose.addEventListener('click', function () {
+      if (bar) bar.style.display = 'none';
+      try { localStorage.setItem('sbpInstallDismissed', '1'); } catch (e) { /* ignore */ }
+    });
+  }
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (!dismissed && bar) bar.style.display = 'flex';
+  });
+
+  if (btnInstall) {
+    btnInstall.addEventListener('click', async function () {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      try { await deferredPrompt.userChoice; } catch (e) { /* ignore */ }
+      deferredPrompt = null;
+      if (bar) bar.style.display = 'none';
+    });
+  }
+
+  // Sembunyikan bar setelah app benar-benar terpasang
+  window.addEventListener('appinstalled', function () {
+    if (bar) bar.style.display = 'none';
+    try { localStorage.setItem('sbpInstallDismissed', '1'); } catch (e) { /* ignore */ }
+  });
+})();
+</script>
 </body>
 </html>

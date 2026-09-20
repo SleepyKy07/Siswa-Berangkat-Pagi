@@ -1,0 +1,32 @@
+{
+  "name": "Portal Program Kerja OSIS",
+  "short_name": "Portal OSIS",
+  "description": "Pusat informasi & pengelolaan program kerja OSIS: Berangkat Pagi, Jadwal Petugas Gerbang, dan Dashboard Absensi.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f0fdfa",
+  "theme_color": "#0f766e",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "./assets/images/logo-osis.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/images/logo-osis.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/images/logo-osis.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

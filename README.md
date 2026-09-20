@@ -363,6 +363,36 @@ server (`list_apresiasi_siswa`) — tampil `-` bila backend belum dikonfigurasi
 atau sedang offline.
 - **Jika backend error**: halaman `/checkin` menampilkan pesan jelas tanpa crash.
 
+## Pasang sebagai Aplikasi (PWA)
+
+Portal (`index.html`) sudah bisa **dipasang sebagai aplikasi** di HP — icon di
+layar utama, terbuka **fullscreen tanpa URL bar**, jadi tidak perlu lagi membuka
+browser dan mengetik alamat.
+
+**Cara pasang (Android / Chrome):**
+
+1. Buka `https://sleepyky07.github.io/Siswa-Berangkat-Pagi/` di Chrome.
+2. Muncul bilah **"Pasang"** di bawah — ketuk. (Bila tidak muncul: menu **⋮**
+   → **Add to Home screen** / **Install app**.)
+3. Icon **Portal OSIS** muncul di layar utama. Buka dari situ.
+
+Setiap kali repo di-`push`, aplikasi **otomatis memakai versi terbaru** — tidak
+perlu pasang ulang.
+
+**Cara kerjanya:**
+
+- `manifest.webmanifest` — mendefinisikan nama, icon (`logo-osis.png`), warna,
+  dan `start_url` → portal.
+- `sw.js` — service worker: menyimpan app-shell agar bisa dibuka cepat & tetap
+  tampil saat koneksi buruk. Permintaan ke Supabase **tidak** di-cache, jadi data
+  absensi selalu real-time.
+- Diubah `CACHE_VERSION` pada `sw.js` untuk memaksa semua perangkat mengambil
+  aset terbaru (mis. setelah mengganti CSS/JS besar).
+
+> **Catatan**: PWA butuh **HTTPS** (GitHub Pages sudah HTTPS). Di iOS, pasang
+> lewat Safari → **Add to Home Screen** (tanpa bilah "Pasang" otomatis).
+> Alur siswa **tidak berubah** — tetap cukup **scan QR** untuk check-in.
+
 ## Perubahan dari Versi Sebelumnya
 
 1. **Input manual**: siswa mengetik nama & kelas sendiri (bukan pilih dari daftar).
