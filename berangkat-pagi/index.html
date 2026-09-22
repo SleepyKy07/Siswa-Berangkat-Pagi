@@ -77,23 +77,13 @@ main{max-width:1100px;margin:18px auto;padding:0 14px}.tab{display:none}.tab.act
 .toastCard.show{transform:translateX(-50%) translateY(0)}
 #cvKonfet{position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1001}
 
-/* Layar PIN (proteksi ringan, konsisten dgn dashboard admin) */
-.pin-overlay{position:fixed;inset:0;z-index:2000;background:rgba(19,78,74,.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;padding:18px}
-.pin-overlay[hidden]{display:none}
-.pin-box{background:#fff;border-radius:20px;padding:30px 26px;max-width:360px;width:100%;text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.3)}
-.pin-icon{font-size:2.2rem;margin-bottom:8px}
-.pin-box h2{color:var(--primary-dark);font-size:1.15rem;margin-bottom:6px}
-.pin-box p{color:var(--muted);font-size:.8rem;margin-bottom:16px}
-.pin-box input{max-width:200px;margin:0 auto 14px;text-align:center;font-size:1.1rem;letter-spacing:.4em}
-.pin-hint{color:var(--danger);font-size:.78rem;margin-top:10px}
-
 @media(max-width:600px){header{padding-bottom:64px}.grid{grid-template-columns:1fr}.full{grid-column:auto}nav{gap:5px;padding:0 8px}.tab-btn{font-size:.72rem;padding:11px 4px}.stats{grid-template-columns:1fr 1fr}.stat:last-child{grid-column:1/-1}.search{max-width:none;width:100%}.actions .btn{flex:1}.card{padding:14px}.student-grid{grid-template-columns:1fr 1fr}.student-table{display:none}.student-table-list{display:block}.student-row{grid-template-columns:1fr}.student-row-actions{width:100%}.student-row-actions .btn{flex:1}.section-head{align-items:stretch}.section-head h2{line-height:1.35}.modal-box{padding:16px}}
 @media(max-width:380px){.student-grid{grid-template-columns:1fr}.student-row-actions .btn{padding-left:8px;padding-right:8px;font-size:.72rem}}
 </style>
 </head>
 <body>
 
-<div class="back-bar"><a href="../index.html"><span>&#8592;</span> Kembali ke Portal Program Kerja OSIS</a><div class="bar-actions"><button class="btn-jadwal" id="btnKunci" title="Kunci halaman (mintu PIN lagi)">&#128274; Keluar</button><button class="btn-jadwal" id="btnSegarkan" title="Muat ulang data dari server (poin baru hasil approve akan muncul di sini)">&#128260; Segarkan</button></div></div>
+<div class="back-bar"><a href="../index.html"><span>&#8592;</span> Kembali ke Portal Program Kerja OSIS</a><div class="bar-actions"><button class="btn-jadwal" id="btnSegarkan" title="Muat ulang data dari server (poin baru hasil approve akan muncul di sini)">&#128260; Segarkan</button></div></div>
 
 <header><div class="inner"><h1>&#127749; Apresiasi Siswa Pagi</h1><p>Catat siswa yang datang paling pagi dan berikan penghargaan atas konsistensinya.</p></div></header>
 <nav><button class="tab-btn active" data-tab="siswa">Data Siswa</button><button class="tab-btn" data-tab="pagi">Catat Pagi</button><button class="tab-btn" data-tab="papan">Papan Apresiasi</button></nav>
@@ -115,18 +105,6 @@ main{max-width:1100px;margin:18px auto;padding:0 14px}.tab{display:none}.tab.act
 </main>
 
 <canvas id="cvKonfet"></canvas>
-
-<!-- Layar PIN: proteksi ringan, sama dengan dashboard admin check-in -->
-<div class="pin-overlay" id="pinOverlay">
-  <div class="pin-box">
-    <div class="pin-icon">&#128274;</div>
-    <h2>Masukkan PIN</h2>
-    <p>Halaman ini dapat mengubah data server (siswa, catatan pagi).</p>
-    <input type="password" id="pinInput" inputmode="numeric" autocomplete="off" placeholder="PIN" maxlength="12">
-    <button class="btn primary" id="pinSubmit">Buka</button>
-    <p class="pin-hint" id="pinHint" hidden>PIN salah.</p>
-  </div>
-</div>
 
 <!-- Modal piagam penghargaan -->
 <div class="modal-overlay" id="modalPiagam">
@@ -274,6 +252,10 @@ async function deleteStudent(id){
 function renderStudents(){var q=$('#studentSearch').value.toLowerCase(),list=sorted().filter(function(s){return !q||(s.nama+' '+s.nis+' '+s.kelas+' '+s.jurusan).toLowerCase().indexOf(q)>-1});$('#studentCount').textContent=db.students.length;if(!list.length){$('#studentTable').innerHTML='<tr><td colspan="7" class="empty">Belum ada siswa yang cocok.</td></tr>';$('#studentMobileList').innerHTML='<div class="empty">Belum ada siswa yang cocok.</div>';return}$('#studentTable').innerHTML=list.map(function(s,i){var po=badgePo(s.id);return '<tr><td>'+(i+1)+'</td><td><b>'+esc(s.nama)+'</b>'+po+'</td><td>'+esc(s.nis||'-')+'</td><td>'+esc(s.kelas||'-')+'</td><td>'+esc(s.jurusan||'-')+'</td><td>'+esc(s.telp||'-')+'</td><td><button class="btn soft small" onclick="editStudent(\''+s.id+'\')">Edit</button> <button class="btn danger small" onclick="deleteStudent(\''+s.id+'\')">Hapus</button></td></tr>'}).join('');$('#studentMobileList').innerHTML=list.map(function(s,i){var po=badgePo(s.id);return '<div class="student-row"><div class="student-row-main"><div class="student-row-name">'+(i+1)+'. '+esc(s.nama)+po+'</div><div class="student-row-meta"><span>'+(s.kelas?esc(s.kelas):'Kelas -')+'</span>'+(s.nis?'<span>NIS '+esc(s.nis)+'</span>':'')+(s.jurusan?'<span>'+esc(s.jurusan)+'</span>':'')+(s.telp?'<span>'+esc(s.telp)+'</span>':'')+'</div></div><div class="student-row-actions"><button class="btn soft small" onclick="editStudent(\''+s.id+'\')">Edit</button><button class="btn danger small" onclick="deleteStudent(\''+s.id+'\')">Hapus</button></div></div>'}).join('')}
 function badgePo(id){var p=db.poin[id]||0;return p>0?'<span class="badge-po">&#127942; '+p+' poin</span>':''}
 function morningCount(id){return db.hitung[id]||0}
+/* Progress "menuju apresiasi" = SISA (total % 2), jadi selalu 0 atau 1.
+   Saat total pas genap, sisa kembali 0 (progress reset) sementara poin
+   tetap bertambah. Server sudah menghitung ini di kolom `sisa`. */
+function progressSisa(id){return db.sisa[id]||0}
 function currentMorning(){return db.pagi[$('#dateInput').value]||null}
 /* Catat/batalkan "paling pagi" -> ditulis ke Supabase.
    Setelah berhasil, seluruh tampilan dimuat ulang dari server agar poin & sisa
@@ -315,8 +297,8 @@ async function recordMorning(id){
   renderSemua();
 }
 function renderMorning(){var date=$('#dateInput').value,q=$('#morningSearch').value.toLowerCase(),chosen=currentMorning(),list=sorted().filter(function(s){return !q||(s.nama+' '+s.kelas+' '+s.nis).toLowerCase().indexOf(q)>-1});var count=list.length;var total=Object.keys(db.pagi).length;$('#dailyStats').innerHTML='<div class="stat"><span>Tanggal</span><b style="font-size:1rem">'+dateText(date)+'</b></div><div class="stat"><span>Status</span><b style="font-size:1rem">'+(chosen?'Tercatat':'Belum')+'</b></div><div class="stat"><span>Total Catatan</span><b>'+total+'</b></div>'+
-    '<div class="stat"><span>Jam Tercatat</span><b style="font-size:1rem">'+(chosen?jamWIB(db.pagiJam[date]):'-')+'</b></div>';if(!db.students.length){$('#morningList').innerHTML='<div class="empty">Tambahkan siswa terlebih dahulu.</div>';return}if(!count){$('#morningList').innerHTML='<div class="empty">Siswa tidak ditemukan.</div>';return}$('#morningList').innerHTML=list.map(function(s){var n=morningCount(s.id),po=db.poin[s.id]||0,selected=chosen===s.id;return '<div class="student-card '+(selected?'selected':'')+(po>0?' gold':'')+'"><div><div class="student-name">'+esc(s.nama)+'</div><div class="student-meta">'+esc(s.kelas||'-')+(s.jurusan?' · '+esc(s.jurusan):'')+'</div></div>'+(po>0?'<span class="badge-po" style="margin:4px 0 0">&#127942; '+po+' poin</span>':'')+(selected?'<span class="tag" style="margin-top:6px">Siswa Pagi Hari Ini'+(chosen&&db.pagiJam[date]?' &middot; '+jamWIB(db.pagiJam[date]):'')+'</span>':'')+'<div class="progress-label"><span>Menuju apresiasi</span><b>'+n+'/2</b></div><div class="progress"><i style="width:'+(n?50:0)+'%"></i></div><button class="btn '+(selected?'soft':'primary')+' small" onclick="recordMorning(\''+s.id+'\')">'+(selected?'Batalkan Pilihan':'Pilih Siswa Ini')+'</button></div>'}).join('')}
-function renderBoard(){var list=sorted().sort(function(a,b){return (db.poin[b.id]||0)-(db.poin[a.id]||0)||morningCount(b.id)-morningCount(a.id)||a.nama.localeCompare(b.nama,'id')});var q=$('#boardSearch').value.toLowerCase();var filtered=list.filter(function(s){return !q||(s.nama+' '+s.kelas).toLowerCase().indexOf(q)>-1});var top=list[0];$('#boardStats').innerHTML='<div class="stat"><span>Total Siswa</span><b>'+db.students.length+'</b></div><div class="stat"><span>Total Poin</span><b>'+list.reduce(function(a,s){return a+(db.poin[s.id]||0)},0)+'</b></div><div class="stat"><span>Pemimpin</span><b style="font-size:1rem">'+(top?esc(top.nama):'-')+'</b></div>';$('#leaderboard').innerHTML=filtered.length?filtered.map(function(s,i){var p=db.poin[s.id]||0,n=morningCount(s.id),medal=i===0?'&#129351;':i===1?'&#129352;':i===2?'&#129353;':String(i+1);return '<div class="rank"><div class="rank-num">'+medal+'</div><div class="rank-info"><strong>'+esc(s.nama)+'</strong><span>'+esc(s.kelas||'-')+' · Berangkat pagi '+n+' kali</span></div><div class="points">'+p+' poin</div></div>'}).join(''):'<div class="empty">Belum ada data apresiasi.</div>';var dates=Object.keys(db.pagi).sort().reverse();$('#history').innerHTML=dates.length?dates.map(function(d){var s=db.students.find(function(x){return x.id===db.pagi[d]});var jm=db.pagiJam&&db.pagiJam[d]?jamWIB(db.pagiJam[d]):'';return '<div class="history-row"><span>'+dateText(d)+(jm?' &middot; '+jm:'')+'</span><b>'+(s?esc(s.nama):'Data dihapus')+'</b></div>'}).join(''):'<div class="empty">Belum ada riwayat siswa pagi.</div>'}
+    '<div class="stat"><span>Jam Tercatat</span><b style="font-size:1rem">'+(chosen?jamWIB(db.pagiJam[date]):'-')+'</b></div>';if(!db.students.length){$('#morningList').innerHTML='<div class="empty">Tambahkan siswa terlebih dahulu.</div>';return}if(!count){$('#morningList').innerHTML='<div class="empty">Siswa tidak ditemukan.</div>';return}$('#morningList').innerHTML=list.map(function(s){var n=progressSisa(s.id),po=db.poin[s.id]||0,selected=chosen===s.id;return '<div class="student-card '+(selected?'selected':'')+(po>0?' gold':'')+'"><div><div class="student-name">'+esc(s.nama)+'</div><div class="student-meta">'+esc(s.kelas||'-')+(s.jurusan?' · '+esc(s.jurusan):'')+'</div></div>'+(po>0?'<span class="badge-po" style="margin:4px 0 0">&#127942; '+po+' poin</span>':'')+(selected?'<span class="tag" style="margin-top:6px">Siswa Pagi Hari Ini'+(chosen&&db.pagiJam[date]?' &middot; '+jamWIB(db.pagiJam[date]):'')+'</span>':'')+'<div class="progress-label"><span>Menuju apresiasi</span><b>'+n+'/2</b></div><div class="progress"><i style="width:'+(n?50:0)+'%"></i></div><button class="btn '+(selected?'soft':'primary')+' small" onclick="recordMorning(\''+s.id+'\')">'+(selected?'Batalkan Pilihan':'Pilih Siswa Ini')+'</button></div>'}).join('')}
+function renderBoard(){var list=sorted().sort(function(a,b){return (db.poin[b.id]||0)-(db.poin[a.id]||0)||morningCount(b.id)-morningCount(a.id)||a.nama.localeCompare(b.nama,'id')});var q=$('#boardSearch').value.toLowerCase();var filtered=list.filter(function(s){return !q||(s.nama+' '+s.kelas).toLowerCase().indexOf(q)>-1});var top=list[0];$('#boardStats').innerHTML='<div class="stat"><span>Total Siswa</span><b>'+db.students.length+'</b></div><div class="stat"><span>Total Poin</span><b>'+list.reduce(function(a,s){return a+(db.poin[s.id]||0)},0)+'</b></div><div class="stat"><span>Pemimpin</span><b style="font-size:1rem">'+(top?esc(top.nama):'-')+'</b></div>';$('#leaderboard').innerHTML=filtered.length?filtered.map(function(s,i){var p=db.poin[s.id]||0,n=morningCount(s.id),sisa=progressSisa(s.id),medal=i===0?'&#129351;':i===1?'&#129352;':i===2?'&#129353;':String(i+1);return '<div class="rank"><div class="rank-num">'+medal+'</div><div class="rank-info"><strong>'+esc(s.nama)+'</strong><span>'+esc(s.kelas||'-')+' · Berangkat pagi '+n+' kali · Menuju apresiasi '+sisa+'/2</span></div><div class="points">'+p+' poin</div></div>'}).join(''):'<div class="empty">Belum ada data apresiasi.</div>';var dates=Object.keys(db.pagi).sort().reverse();$('#history').innerHTML=dates.length?dates.map(function(d){var s=db.students.find(function(x){return x.id===db.pagi[d]});var jm=db.pagiJam&&db.pagiJam[d]?jamWIB(db.pagiJam[d]):'';return '<div class="history-row"><span>'+dateText(d)+(jm?' &middot; '+jm:'')+'</span><b>'+(s?esc(s.nama):'Data dihapus')+'</b></div>'}).join(''):'<div class="empty">Belum ada riwayat siswa pagi.</div>'}
 async function resetMorning(){
   var date=$('#dateInput').value;
   if(!date||!db.pagi[date]){alert('Belum ada catatan pada tanggal ini.');return}
@@ -345,7 +327,7 @@ async function resetBoard(){
    di program kerja "Jadwal Petugas Gerbang" (jadwal-gerbang/). */
 var NAMA_BULAN=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
 
-function csv(){var rows=[['Nama','NIS','Kelas','Jurusan','Jumlah Menuju Apresiasi','Poin Apresiasi']];sorted().forEach(function(s){rows.push([s.nama,s.nis||'',s.kelas||'',s.jurusan||'',morningCount(s.id),db.poin[s.id]||0])});var text='\uFEFF'+rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(';')}).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.download='papan-apresiasi-siswa-pagi.csv';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},500)}
+function csv(){var rows=[['Nama','NIS','Kelas','Jurusan','Jumlah Menuju Apresiasi','Poin Apresiasi']];sorted().forEach(function(s){rows.push([s.nama,s.nis||'',s.kelas||'',s.jurusan||'',progressSisa(s.id),db.poin[s.id]||0])});var text='\uFEFF'+rows.map(function(r){return r.map(function(v){return '"'+String(v).replace(/"/g,'""')+'"'}).join(';')}).join('\r\n'),a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type:'text/csv;charset=utf-8'}));a.download='papan-apresiasi-siswa-pagi.csv';a.click();setTimeout(function(){URL.revokeObjectURL(a.href)},500)}
 
 function backupData(){
   var blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json;charset=utf-8'});
@@ -484,33 +466,7 @@ function ledakkan(){
   })();
 }
 
-document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});$('#studentForm').addEventListener('submit',submitStudent);$('#cancelBtn').addEventListener('click',resetForm);$('#studentSearch').addEventListener('input',renderStudents);$('#dateInput').addEventListener('change',renderMorning);$('#todayBtn').addEventListener('click',function(){$('#dateInput').value=today();renderMorning()});$('#morningSearch').addEventListener('input',renderMorning);$('#resetMorningBtn').addEventListener('click',resetMorning);$('#boardSearch').addEventListener('input',renderBoard);$('#resetBoardBtn').addEventListener('click',resetBoard);$('#csvBtn').addEventListener('click',csv);$('#backupBtn').addEventListener('click',backupData);$('#importBtn').addEventListener('click',function(){var f=$('#importFile');if(!f.files.length)f.click()});$('#importFile').addEventListener('change',pilihImport);document.addEventListener('keydown',function(e){if(e.key==='Escape'){tutupPiagam()}});$('#piagamBtn').addEventListener('click',bukaPiagam);$('#btnTutupPiagam').addEventListener('click',tutupPiagam);$('#btnCetakPiagam').addEventListener('click',function(){window.print()});$('#piagamSiswa').addEventListener('change',renderPiagam);$('#modalPiagam').addEventListener('click',function(e){if(e.target===$('#modalPiagam'))tutupPiagam()});$('#dateInput').value=today();renderStudents();renderMorning();renderBoard();cobaBukaPIN();
-
-/* ================= PIN (proteksi ringan, konsisten dgn dashboard) =================
-   Halaman ini dapat menulis ke server (siswa/pagi). PIN dibaca dari
-   supabase-config.js (dashboardPin) dan dicek di browser — proteksi ringan,
-   BUKAN keamanan sungguhan. Status "sudah dibuka" disimpan di sessionStorage. */
-
-function pinTersimpan(){return sessionStorage.getItem('apresiasiPinOk')==='1'}
-function cobaBukaPIN(){
-  if(pinTersimpan()){ $('#pinOverlay').hidden=true; return; }
-  $('#pinOverlay').hidden=false;
-  var inp=$('#pinInput'); inp.value=''; $('#pinHint').hidden=true; inp.focus();
-}
-function cekPIN(){
-  var pin=String(($('#pinInput').value||'').trim());
-  var benar=String((window.SUPABASE_CONFIG&&window.SUPABASE_CONFIG.dashboardPin)||'1234');
-  if(pin===benar){
-    sessionStorage.setItem('apresiasiPinOk','1');
-    $('#pinOverlay').hidden=true;
-  }else{
-    $('#pinHint').hidden=false;
-    $('#pinInput').value=''; $('#pinInput').focus();
-  }
-}
-$('#pinSubmit').addEventListener('click',cekPIN);
-$('#pinInput').addEventListener('keydown',function(e){if(e.key==='Enter')cekPIN()});
-$('#btnKunci').addEventListener('click',function(){sessionStorage.removeItem('apresiasiPinOk');cobaBukaPIN()});
+document.querySelectorAll('.tab-btn').forEach(function(b){b.addEventListener('click',function(){showTab(b.dataset.tab)})});$('#studentForm').addEventListener('submit',submitStudent);$('#cancelBtn').addEventListener('click',resetForm);$('#studentSearch').addEventListener('input',renderStudents);$('#dateInput').addEventListener('change',renderMorning);$('#todayBtn').addEventListener('click',function(){$('#dateInput').value=today();renderMorning()});$('#morningSearch').addEventListener('input',renderMorning);$('#resetMorningBtn').addEventListener('click',resetMorning);$('#boardSearch').addEventListener('input',renderBoard);$('#resetBoardBtn').addEventListener('click',resetBoard);$('#csvBtn').addEventListener('click',csv);$('#backupBtn').addEventListener('click',backupData);$('#importBtn').addEventListener('click',function(){var f=$('#importFile');if(!f.files.length)f.click()});$('#importFile').addEventListener('change',pilihImport);document.addEventListener('keydown',function(e){if(e.key==='Escape'){tutupPiagam()}});$('#piagamBtn').addEventListener('click',bukaPiagam);$('#btnTutupPiagam').addEventListener('click',tutupPiagam);$('#btnCetakPiagam').addEventListener('click',function(){window.print()});$('#piagamSiswa').addEventListener('change',renderPiagam);$('#modalPiagam').addEventListener('click',function(e){if(e.target===$('#modalPiagam'))tutupPiagam()});$('#dateInput').value=today();renderStudents();renderMorning();renderBoard();
 
 /* ================= SEGARKAN (manual) =================
    Poin di server memang sudah otomatis dihitung saat admin menyetujui

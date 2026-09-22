@@ -294,9 +294,8 @@ dibuka dari perangkat mana pun dan tidak hilang bila cache dibersihkan:
   Bila ada siswa yang poinsnya bertambah sejak terakhir (mis. baru di-approve
   di dashboard), efek apresiasi (toast + konfeti) dimunculkan di sini juga.
 
-Halaman ini dilindungi **PIN yang sama dengan dashboard admin** (diatur di
-`assets/js/supabase-config.js` → `DASHBOARD_PIN`), dicek di browser. Sama seperti
-dashboard: proteksi ringan, bukan keamanan sungguhan.
+Halaman ini **tidak memakai PIN** — langsung terbuka (tombol **Kunci/Keluar** dan
+layar PIN dihapus). PIN hanya dipakai oleh dashboard admin (`checkin/dashboard.html`).
 
 > **Penting**: pengaitan otomatis ke apresiasi terjadi saat admin **menyetujui**
 > data pending — jika check-in siswa adalah yang terawal hari itu dan belum
@@ -349,7 +348,7 @@ Mode untuk ketiga fungsi di atas: `before` (sebelum tanggal), `today` (hari ini)
 
 Halaman depan (`index.html`) menampilkan kartu program:
 
-- **Berangkat Pagi** → `berangkat-pagi/` (halaman apresiasi, PIN)
+- **Berangkat Pagi** → `berangkat-pagi/` (halaman apresiasi, tanpa PIN)
 - **Jadwal Petugas Gerbang** → `jadwal-gerbang/`
 - **Dashboard Absensi (Admin)** → `checkin/dashboard.html` (PIN) — tidak perlu
   lagi mengetik URL manual; slot `proker-2/` otomatis dialihkan ke sini.
@@ -413,6 +412,7 @@ perlu pasang ulang.
     Papan* menjadi satu panggilan server (`reset_morning_all`).
     **Jalankan ulang `supabase/setup.sql`** di SQL Editor untuk project yang
     sudah berjalan (semua perubahan bersifat idempotent).
+    *(PIN halaman apresiasi kemudian dihapus — lihat changelog #14.)*
 12. **Semua waktu dipaksa WIB (`Asia/Jakarta`)**: helper baru `now_wib()` menggantikan
     `localtime`/`current_date`/`localtimestamp` di seluruh fungsi & default kolom
     (`check_ins.checkin_date`, `morning_records.tanggal`). Berguna karena zona DB
@@ -426,6 +426,12 @@ perlu pasang ulang.
     `simpan_piket_tanggal`/`hapus_piket_tanggal`/`list_piket` beserta wrapper
     kliennya dibuang. **Jalankan ulang `setup.sql`** — bagian 13 kini berupa blok
     `drop` idempotent yang membersihkan tabel & fungsi lama.
+14. **PIN halaman apresiasi dihapus**: halaman `berangkat-pagi/` kini **tanpa PIN** —
+    layar PIN, tombol "Kunci/Keluar", dan logikanya dibuang. PIN tetap dipakai
+    dashboard admin saja. Selain itu, **progress "Menuju apresiasi"** di tab Catat
+    Pagi, CSV, dan papan peringkat kini menampilkan **sisa (0/2–1/2)** — bukan total
+    mentah, sehingga tidak lagi melebihi batas (mis. "3/2"). Saat mencapai 2 catatan
+    (genap), progress **kembali 0/2** sementara **poin tetap bertambah**.
 
 ## Cara Menjalankan Secara Lokal (untuk testing)
 
