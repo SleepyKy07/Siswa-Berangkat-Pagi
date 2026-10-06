@@ -198,6 +198,20 @@ body.mode-edit #anggotaForm{border:3px dashed var(--primary);padding:12px;border
       <div class="bulan-nav" id="bulanNav"></div>
       <div class="kal" id="kalGrid"></div>
       <div class="editor-jadwal" id="editorJadwal"></div>
+      <div class="card" id="waCard" style="margin-top:14px">
+        <div class="section-head">
+          <h2>PESAN WA GRUP (Petugas Hari Ini)</h2>
+        </div>
+        <div class="mut" id="waTagHint" style="margin-bottom:8px">Template: {kegiatan}, {tanggal}, {daftar}. {daftar} terisi otomatis dari jadwal hari ini.</div>
+        <label></label>
+        <textarea id="tplWa" rows="4" placeholder="Template pesan..."></textarea>
+        <div class="row" style="margin-top:10px">
+          <button type="button" class="btn pri" id="sendGrp">Kirim ke grup WA</button>
+          <button type="button" class="btn soft" id="copyWa">Salin pesan</button>
+        </div>
+        <label>Preview</label>
+        <div class="pre" id="waPreview"></div>
+      </div>
     </div>
   </section>
   <section id="tab-berhalangan" class="tab">
@@ -539,7 +553,7 @@ function simpanEdit(){
   oldPetugas.forEach(function(id){if(id)db.hitung[id]=(db.hitung[id]||0)-1});
   var en=db.jadwal[key]={petugas:newPetugas,status:'belum'};
   newPetugas.forEach(function(id){db.hitung[id]=(db.hitung[id]||0)+1});
-  save();renderKalender();renderEditor();renderStatistik();
+  save();renderKalender();renderEditor();renderWa();renderStatistik();
   toast('Jadwal diperbarui untuk '+dateText(key));
 }
 function cmd(ids,dir){ids.forEach(function(id){db.hitung[id]=(db.hitung[id]||0)+dir});}
@@ -553,7 +567,7 @@ function hapusSemuaJadwal(){
   db.jadwal={};
   tglPilih=null;
   save();
-  renderBulanNav();renderKalender();renderEditor();renderStatistik();
+  renderBulanNav();renderKalender();renderEditor();renderWa();renderStatistik();
   toast('Semua jadwal dihapus.');
 }
 function toast(msg){
@@ -652,7 +666,7 @@ $('#btnGenerateJadwal').addEventListener('click',function(){
   var startKey=db.setting.tglMulai||today();
   var s=new Date(startKey);s.setDate(s.getDate()+30);var def=iso(s);
   var end=prompt('Masukkan tanggal akhir jadwal (format YYYY-MM-DD):',def);
-  if(end&&generateSchedule(end)){toast('Jadwal dibuat hingga '+end);renderBulanNav();renderKalender();renderStatistik();}
+  if(end&&generateSchedule(end)){toast('Jadwal dibuat hingga '+end);renderBulanNav();renderKalender();renderWa();renderStatistik();}
 });
 $('#btnPrint').addEventListener('click',printJadwal);
 $('#btnHapusJadwal').addEventListener('click',hapusSemuaJadwal);
@@ -678,7 +692,7 @@ $('#btnBukaSettings').addEventListener('click',function(){
   $('#settingHariLibur').value=db.setting.hariLibur||'';
   $('#modalSettings').classList.add('buka');
 });
-function showTab(name){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===name)});document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.id==='tab-'+name)});try{if(name==='anggota')renderAnggota();else if(name==='jadwal'){renderBulanNav();renderKalender();renderEditor();}else if(name==='berhalangan')renderBerhalangan();else if(name==='statistik')renderStatistik()}catch(err){console.error('Error on tab '+name+':',err)}}
+function showTab(name){document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.toggle('active',b.dataset.tab===name)});document.querySelectorAll('.tab').forEach(function(t){t.classList.toggle('active',t.id==='tab-'+name)});try{if(name==='anggota')renderAnggota();else if(name==='jadwal'){renderBulanNav();renderKalender();renderEditor();renderWa();}else if(name==='berhalangan')renderBerhalangan();else if(name==='statistik')renderStatistik()}catch(err){console.error('Error on tab '+name+':',err)}}
 function renderHeader(){
   var el=$('#headerInfo');
   try{
@@ -689,8 +703,24 @@ function renderHeader(){
   }catch(err){console.error('Error in renderHeader:',err)}
 }
 function simpanSettings(){try{var hariAktif=[];if($('#aktifSenin').checked)hariAktif.push(1);if($('#aktifSelasa').checked)hariAktif.push(2);if($('#aktifRabu').checked)hariAktif.push(3);if($('#aktifKamis').checked)hariAktif.push(4);if($('#aktifJumat').checked)hariAktif.push(5);if($('#aktifSabtu').checked)hariAktif.push(6);db.setting={tglMulai:$('#settingTglMulai').value,perHari:Number($('#settingPerHari').value)||2,jamMulai:$('#settingJamMulai').value,jamSelesai:$('#settingJamSelesai').value,hariAktif:hariAktif,hariLibur:$('#settingHariLibur').value};save();renderHeader();$('#modalSettings').classList.remove('buka');toast('Pengaturan tersimpan!')}catch(err){alert('Error simpan pengaturan: '+err.message)}}
+var DEF_TPL_WA = 'Nama-nama di bawah ini adalah petugas gerbang hari ini, {tanggal}:\n{daftar}\nMohon konfirmasi. Terima kasih.';
+function petugasHariIni(){var k=today(),en=db.jadwal[k],ids=(en&&en.petugas)?en.petugas:[];return ids.map(function(id){var m=db.anggota.find(function(x){return x.id===id});return m?m.nama:id});}
+function buildMsgWa(){var k=today(),tpl=$('#tplWa').value||DEF_TPL_WA,alpa=petugasHariIni(),txt=alpa.length?alpa.join('\n'):'Tidak ada yang bertugas hari ini.';return tpl.split('{kegiatan}').join('Pengawasan Gerbang Kelas').split('{tanggal}').join(dateText(k)).split('{waktu}').join((db.setting.jamMulai||'06:30')+' - '+(db.setting.jamSelesai||'07:00')).split('{daftar}').join(txt);}
+function renderWa(){$('#waPreview').textContent=buildMsgWa();$('#waTagHint').innerHTML='';var alpa=petugasHariIni();if(alpa.length===0){$('#sendGrp').disabled=true;$('#copyWa').disabled=true}else{$('#sendGrp').disabled=false;$('#copyWa').disabled=false}}
+function sendGrp(){var msg=buildMsgWa();$('waTagHint').innerHTML='Membuka WhatsApp... pilih grup tujuan lalu kirim.';var url='whatsapp://send?text='+encodeURIComponent(msg);window.open(url,'_self')}
+function copyWa(){var msg=buildMsgWa(),done=function(ok){$('#waTagHint').innerHTML=ok?'<span class="sukses">Tersalin! Paste di grup WA.</span>':'Gagal salin otomatis.';setTimeout(function(){$('#waTagHint').innerHTML='';},2500)};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(msg).then(function(){done(true)}).catch(function(){fallbackCopy(msg,done)})}else{fallbackCopy(msg,done)}}
+function fallbackCopy(txt,done){try{var ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}catch(e){done(false)}}
+
 // INIT
+$('#tplWa').value = DB_set_tpl_wa || DEF_TPL_WA;
+renderWa();
+$('#sendGrp').addEventListener('click',sendGrp);
+$('#copyWa').addEventListener('click',copyWa);
+['tplWa'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',renderWa)});
+
 $('.tab-btn.active').click();renderHeader();
+
+
 if(db.setting.tglMulai&&!Object.keys(db.jadwal).length&&db.anggota.length){var end=prompt('Auto-generate jadwal 30 hari pertama? Klik Cancel untuk manual.','2025-12-31');if(end!==null)generateSchedule(end)}
 </script>
 </body>
