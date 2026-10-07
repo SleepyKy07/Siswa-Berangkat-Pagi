@@ -705,18 +705,18 @@ function renderHeader(){
 function simpanSettings(){try{var hariAktif=[];if($('#aktifSenin').checked)hariAktif.push(1);if($('#aktifSelasa').checked)hariAktif.push(2);if($('#aktifRabu').checked)hariAktif.push(3);if($('#aktifKamis').checked)hariAktif.push(4);if($('#aktifJumat').checked)hariAktif.push(5);if($('#aktifSabtu').checked)hariAktif.push(6);db.setting={tglMulai:$('#settingTglMulai').value,perHari:Number($('#settingPerHari').value)||2,jamMulai:$('#settingJamMulai').value,jamSelesai:$('#settingJamSelesai').value,hariAktif:hariAktif,hariLibur:$('#settingHariLibur').value};save();renderHeader();$('#modalSettings').classList.remove('buka');toast('Pengaturan tersimpan!')}catch(err){alert('Error simpan pengaturan: '+err.message)}}
 var DEF_TPL_WA = 'Nama-nama di bawah ini adalah petugas gerbang hari ini, {tanggal}:\n{daftar}\nMohon konfirmasi. Terima kasih.';
 function petugasHariIni(){var k=today(),en=db.jadwal[k],ids=(en&&en.petugas)?en.petugas:[];return ids.map(function(id){var m=db.anggota.find(function(x){return x.id===id});return m?m.nama:id});}
-function buildMsgWa(){var k=today(),tpl=$('#tplWa').value||DEF_TPL_WA,alpa=petugasHariIni(),txt=alpa.length?alpa.join('\n'):'Tidak ada yang bertugas hari ini.';return tpl.split('{kegiatan}').join('Pengawasan Gerbang Kelas').split('{tanggal}').join(dateText(k)).split('{waktu}').join((db.setting.jamMulai||'06:30')+' - '+(db.setting.jamSelesai||'07:00')).split('{daftar}').join(txt);}
-function renderWa(){$('#waPreview').textContent=buildMsgWa();$('#waTagHint').innerHTML='';var alpa=petugasHariIni();if(alpa.length===0){$('#sendGrp').disabled=true;$('#copyWa').disabled=true}else{$('#sendGrp').disabled=false;$('#copyWa').disabled=false}}
-function sendGrp(){var msg=buildMsgWa();$('waTagHint').innerHTML='Membuka WhatsApp... pilih grup tujuan lalu kirim.';var url='whatsapp://send?text='+encodeURIComponent(msg);window.open(url,'_self')}
+function buildMsgWa(){var k=today(),tpl=$('#tplWa').value||DEF_TPL_WA,alpa=petugasHariIni(),txt=alpa.length?alpa.map(function(n){return '*'+n+'*'}).join('\n'):'Tidak ada yang bertugas hari ini.';return tpl.split('{kegiatan}').join('Pengawasan Gerbang Kelas').split('{tanggal}').join(dateText(k)).split('{waktu}').join((db.setting.jamMulai||'06:30')+' - '+(db.setting.jamSelesai||'07:00')).split('{daftar}').join(txt);}
+function renderWa(){$('#waPreview').textContent=buildMsgWa();$('#waTagHint').innerHTML='';$('#sendGrp').disabled=false;$('#copyWa').disabled=false}
+function sendGrp(){var msg=buildMsgWa();$('#waTagHint').innerHTML='Membuka WhatsApp... pilih grup tujuan lalu kirim.';var url='whatsapp://send?text='+encodeURIComponent(msg);window.open(url,'_self')}
 function copyWa(){var msg=buildMsgWa(),done=function(ok){$('#waTagHint').innerHTML=ok?'<span class="sukses">Tersalin! Paste di grup WA.</span>':'Gagal salin otomatis.';setTimeout(function(){$('#waTagHint').innerHTML='';},2500)};if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(msg).then(function(){done(true)}).catch(function(){fallbackCopy(msg,done)})}else{fallbackCopy(msg,done)}}
 function fallbackCopy(txt,done){try{var ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();var ok=document.execCommand('copy');ta.remove();done(ok)}catch(e){done(false)}}
 
 // INIT
-$('#tplWa').value = DB_set_tpl_wa || DEF_TPL_WA;
+$('#tplWa').value = (db.setting && db.setting.tplWa) || DEF_TPL_WA;
 renderWa();
 $('#sendGrp').addEventListener('click',sendGrp);
 $('#copyWa').addEventListener('click',copyWa);
-['tplWa'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',renderWa)});
+['tplWa'].forEach(function(id){var el=document.getElementById(id);if(el)el.addEventListener('input',function(){if(!db.setting)db.setting={};db.setting.tplWa=$('#tplWa').value;save();renderWa()})});
 
 $('.tab-btn.active').click();renderHeader();
 
