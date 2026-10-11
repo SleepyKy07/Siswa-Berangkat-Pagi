@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="id">
+<head><meta charset="utf-8"><title>Seed Jadwal Gerbang</title></head>
+<body>
+<script>
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,8)}
+const members = [
+  {"nama":"Affifah Fitria H","jk":"P"},
+  {"nama":"Albertus Alkasih","jk":"P"},
+  {"nama":"Ayra Nazhwa Nathania","jk":"P"},
+  {"nama":"Ayu Alvianti","jk":"P"},
+  {"nama":"Ayu Safina","jk":"P"},
+  {"nama":"Calysta Citra Christiyani","jk":"P"},
+  {"nama":"Carol Valeri Syibilla","jk":"P"},
+  {"nama":"Celsy Wulandari","jk":"P"},
+  {"nama":"Chikita Melody Elis Saputri","jk":"P"},
+  {"nama":"Clarisa Adelia Afianti","jk":"P"},
+  {"nama":"Dika Pratama","jk":"L"},
+  {"nama":"Dinda Ramadanti","jk":"P"},
+  {"nama":"Elza Chika Amara","jk":"P"},
+  {"nama":"Hengki Kanegi","jk":"L"},
+  {"nama":"Ida Safira","jk":"P"},
+  {"nama":"Jerda Perkasa","jk":"L"},
+  {"nama":"Jheslin Sonya Pratama","jk":"P"},
+  {"nama":"Kelvin Kurniawan","jk":"L"},
+  {"nama":"Kirania Amanda Rahma","jk":"P"},
+  {"nama":"M. Ridho Saputra","jk":"L"},
+  {"nama":"Melly Hasanah","jk":"P"},
+  {"nama":"Mesya Agia Putri","jk":"P"},
+  {"nama":"Mutiara Oktaviana","jk":"P"},
+  {"nama":"Nayla Ansania","jk":"P"},
+  {"nama":"Putri Habsari","jk":"P"},
+  {"nama":"Restu Wulan Ningrum","jk":"P"},
+  {"nama":"Reza Prasetya","jk":"L"},
+  {"nama":"Safira Azzhara","jk":"P"},
+  {"nama":"Sava Fitria Ramadhani","jk":"P"},
+  {"nama":"Shafa Alya Fadilah","jk":"P"},
+  {"nama":"Tia Desvita Rahayu","jk":"P"},
+  {"nama":"Yuanita Artanti Etika Arundati","jk":"P"},
+  {"nama":"Yunita Sari","jk":"P"},
+  {"nama":"Daffa Rizky Hary Pratama","jk":"L"},
+  {"nama":"Cinta Anggy Kharisma","jk":"P"},
+  {"nama":"Elsa Devita Sari","jk":"P"},
+  {"nama":"Fathiyah Hasna Saputri","jk":"P"},
+  {"nama":"Naela Lutfiah Setiawan","jk":"P"},
+  {"nama":"Novia Hairunisa","jk":"P"},
+  {"nama":"Putri Jene","jk":"P"},
+  {"nama":"Rifkan Ari Saputra","jk":"L"},
+  {"nama":"Rindu Bayu Segara","jk":"P"}
+].map(m=>({id:uid(),nama:m.nama,jk:m.jk,aktif:true}));
+const KEY='jadwalGerbangV1';
+let db = {anggota:members, jadwal:{}, berhalangan:{}, hitung:{}, brhlKet:{}, setting:{tglMulai:'2026-10-07', perHari:4, jamMulai:'06:30', jamSelesai:'07:00', hariAktif:[1,2,3,4,5], hariLibur:''}};
+try{
+  const old = JSON.parse(localStorage.getItem(KEY)||'{}');
+  if(old && old.setting) db.setting = old.setting;
+}catch(e){}
+localStorage.setItem(KEY, JSON.stringify(db));
+function pad2(n){return String(n).padStart(2,'0')}
+function addDays(key,days){var p=String(key||'').split('-');var d=new Date(Number(p[0]),Number(p[1])-1,Number(p[2]));d.setDate(d.getDate()+days);return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate())}
+var seedStart=db.setting.tglMulai||new Date().getFullYear()+'-'+pad2(new Date().getMonth()+1)+'-'+pad2(new Date().getDate());
+var seedEnd=addDays(seedStart,30);
+alert('42 anggota sudah dimasukkan ke localStorage. Jadwal otomatis dibuat sampai '+seedEnd+'.');
+location.replace('index.html#autojadwal='+seedEnd);
+</script>
+Memuat data anggota...
+</body>
+</html>
