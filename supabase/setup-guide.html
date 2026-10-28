@@ -64,6 +64,7 @@
     <div class="notice ok">Script bersifat <strong>idempotent</strong> — aman dijalankan ulang untuk project yang sudah ada (mis. setelah update repo). Jalankan ulang setelah menarik pembaruan ini.</div>
     <div class="notice ok">Saat dijalankan pada data lama, blok <strong>12k–12l</strong> membackfill check-in lama dan memberi <strong>1 poin</strong> kepada siswa yang masih 0 poin tetapi sudah pernah check-in (termasuk check-in manual lama yang belum tertaut, dicocokkan lewat nama + kelas). Hanya 1 catatan per siswa dan idempotent.</div>
     <div class="notice">Untuk project lama yang sudah berisi data, <strong>backup dulu</strong> sebelum menjalankan ulang script — blok backfill/koreksi menambah catatan poin.</div>
+    <div class="notice">Koreksi khusus jam check-in <strong>&gt;= 06:40</strong> ada di file terpisah <code>supabase/fix-jam-0640.sql</code>. Jalankan <strong>sekali</strong> setelah backup; script ini tidak dijalankan otomatis oleh <code>setup.sql</code>.</div>
     <div class="notice ok">Fungsi <code>get_session_status()</code> dan <code>submit_checkin_manual()</code> memakai jam server PostgreSQL sebagai sumber waktu utama. Device siswa tidak dipercaya untuk waktu.</div>
   </div>
 

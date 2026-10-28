@@ -163,6 +163,9 @@ Sertifikat dev disimpan di `.certs/` dan **tidak di-commit** (berisi private key
      Hanya 1 catatan per siswa dan idempotent. **Backup data dulu.**
    - Sebelum backfill, cek apakah ada check-in setelah jam tutup:
      `select count(*) from check_ins where (checked_in_at at time zone 'Asia/Jakarta')::time >= '06:40';`
+   - Koreksi khusus jam check-in **>= 06:40** tersedia terpisah di
+     `supabase/fix-jam-0640.sql`. Jalankan **sekali** setelah backup; script
+     ini tidak dijalankan otomatis oleh `setup.sql`.
 3. **Jika selfie tidak bisa dilihat** (upload sukses tapi tampil "tidak ditemukan"),
    jalankan juga `supabase/fix-storage.sql` — ini menambah policy SELECT yang
    dibutuhkan untuk membuat signed URL.
@@ -486,6 +489,14 @@ perlu pasang ulang.
     Berangkat Pagi* dihapus agar tidak membingungkan. Data
     `morning_records.source` tetap disimpan di server, tetapi tidak lagi
     ditampilkan di UI.
+19. **Koreksi jam check-in >= 06:40**: script terpisah
+    `supabase/fix-jam-0640.sql` mengubah jam check-in siswa yang >= 06:40 WIB
+    ke rentang 06:39:00–06:39:59 WIB tanpa mengubah tanggal. Mapping dilakukan
+    berurutan agar urutan record tetap terjaga; `morning_records.recorded_at`
+    untuk catatan manual tanpa `checkin_at` ikut dikoreksi. Script membuat
+    backup dan memverifikasi hasil. Record `check_ins` tanpa `student_id`
+    (pending/rejected) tidak diubah; poin tidak dihitung ulang. Jalankan
+    **sekali**, bukan bagian dari `setup.sql`.
 
 ## Cara Menjalankan Secara Lokal (untuk testing)
 
