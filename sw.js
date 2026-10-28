@@ -18,7 +18,7 @@
 
 'use strict';
 
-var CACHE_VERSION = 'sbp-portal-v1';
+var CACHE_VERSION = 'sbp-portal-v5';
 
 // Aset inti (app-shell) yang di-cache saat install.
 var APP_SHELL = [

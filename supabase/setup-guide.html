@@ -62,6 +62,8 @@
       </li>
     </ol>
     <div class="notice ok">Script bersifat <strong>idempotent</strong> — aman dijalankan ulang untuk project yang sudah ada (mis. setelah update repo). Jalankan ulang setelah menarik pembaruan ini.</div>
+    <div class="notice ok">Saat dijalankan pada data lama, blok <strong>12k–12l</strong> membackfill check-in lama dan memberi <strong>1 poin</strong> kepada siswa yang masih 0 poin tetapi sudah pernah check-in (termasuk check-in manual lama yang belum tertaut, dicocokkan lewat nama + kelas). Hanya 1 catatan per siswa dan idempotent.</div>
+    <div class="notice">Untuk project lama yang sudah berisi data, <strong>backup dulu</strong> sebelum menjalankan ulang script — blok backfill/koreksi menambah catatan poin.</div>
     <div class="notice ok">Fungsi <code>get_session_status()</code> dan <code>submit_checkin_manual()</code> memakai jam server PostgreSQL sebagai sumber waktu utama. Device siswa tidak dipercaya untuk waktu.</div>
   </div>
 
@@ -134,8 +136,8 @@
         <ul>
           <li>Aktifkan / nonaktifkan sesi secara manual (override)</li>
           <li>Atur jam mulai &amp; selesai jadwal otomatis</li>
-          <li>Melihat siswa paling pagi hari ini</li>
-          <li>Melihat daftar check-in hari ini (nama, kelas, waktu)</li>
+          <li>Melihat ringkasan berangkat pagi hari ini (jumlah check-in, sudah tercatat, pending)</li>
+          <li>Melihat daftar check-in hari ini (nama, kelas, waktu, status poin)</li>
           <li>Membuka selfie via tombol <strong>Lihat Selfie</strong></li>
           <li><strong>Data Pending</strong>: menyetujui / mengabaikan nama+kelas yang diketik manual</li>
         </ul>
@@ -150,10 +152,10 @@
     <ol>
       <li>Buka <code>berangkat-pagi/index.html</code> (tanpa PIN — langsung terbuka).</li>
       <li>Data tersimpan di server: <strong>siswa</strong> (tabel <code>students</code>)
-        dan <strong>catatan paling pagi</strong> (<code>morning_records</code>).</li>
+        dan <strong>catatan berangkat pagi</strong> (<code>morning_records</code>).</li>
       <li>Tambah/ubah siswa bisa lengkap: Nama, NIS, Kelas, Jurusan, JK, No. HP, Alamat.</li>
       <li>Import siswa massal dari CSV menulis langsung ke server (NIS duplikat dilewati).</li>
-      <li>Catat paling pagi: pilih 1 siswa per tanggal &rarr; tiap <strong>2x</strong> tercatat = 1 poin apresiasi.</li>
+      <li>Semua siswa yang check-in selama QR dibuka otomatis tercatat. Tiap <strong>1x</strong> berangkat pagi = 1 poin apresiasi; banyak siswa boleh tercatat pada tanggal yang sama. Siswa yang sebelumnya 0 poin karena aturan lama akan mendapat <strong>1 poin</strong> setelah <code>setup.sql</code> dijalankan ulang.</li>
       <li><strong>Cadangkan</strong> mengunduh data server ke file JSON. (Fitur <em>Pulihkan</em> dihapus —
         data master ada di server.)</li>
     </ol>

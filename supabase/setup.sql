@@ -331,7 +331,9 @@ drop function if exists get_selfie_url(text, int);
 -- 10a. Simpan check-in manual (server-validated).
 -- - Sesi harus AKTIF
 -- - Nama & kelas wajib (setelah dipangkas spasi)
--- - Anti-duplikat: nama+kelas sama (abaikan besar/kecil huruf) pada hari yang sama
+-- - Siswa terdaftar (nama+kelas cocok, aktif) langsung tertaut & dapat poin
+-- - Nama baru masuk pending_students untuk ditinjau admin
+-- - Anti-duplikat: nama+kelas sama ATAU student_id sama pada hari yang sama
 -- - Tanggal & jam memakai WAKTU SERVER
 create or replace function submit_checkin_manual(
   p_nama text,
@@ -348,6 +350,8 @@ declare
   v_kelas text;
   v_row check_ins;
   v_pending_id bigint;
+  v_student_id bigint;
+  v_morning jsonb;
 begin
   -- 1. Sesi harus aktif
   v_status := get_session_status();
@@ -372,7 +376,18 @@ begin
     return jsonb_build_object('error', 'KELAS_TERLALU_PANJANG');
   end if;
 
-  -- 3. Anti-duplikat: nama + kelas sama hari ini (tanggal WIB)
+  -- 3. Cari siswa aktif dengan nama & kelas yang cocok.
+  --    Jika ketemu: check-in langsung tertaut dan poin langsung diberikan.
+  --    Jika tidak: check-in masuk pending_students.
+  select s.id into v_student_id
+  from students s
+  where s.aktif = true
+    and lower(trim(s.nama)) = lower(v_nama)
+    and lower(trim(coalesce(s.kelas, ''))) = lower(v_kelas)
+  order by s.id
+  limit 1;
+
+  -- 4a. Anti-duplikat nama + kelas sama hari ini (untuk semua, termasuk pending)
   if exists (
     select 1 from check_ins c
     where c.checkin_date = now_wib()::date
@@ -382,24 +397,43 @@ begin
     return jsonb_build_object('error', 'SUDAH_CHECKIN_HARI_INI');
   end if;
 
-  -- 4. Simpan check-in (tanggal dievaluasi WIB; checked_in_at tetap timestamp absolut)
+  -- 4b. Anti-duplikat berdasarkan student_id (mencegah bentrok unique
+  --     bila nama/kelas diketik sedikit berbeda dari data master).
+  if v_student_id is not null and exists (
+    select 1 from check_ins c
+    where c.student_id = v_student_id
+      and c.checkin_date = now_wib()::date
+  ) then
+    return jsonb_build_object('error', 'SUDAH_CHECKIN_HARI_INI');
+  end if;
+
+  -- 5. Simpan check-in (tanggal dievaluasi WIB; checked_in_at tetap timestamp absolut)
   insert into check_ins (student_id, checkin_date, checked_in_at, selfie_path, nama_manual, kelas_manual)
-  values (null, now_wib()::date, now(), p_selfie_path, v_nama, v_kelas)
+  values (v_student_id, now_wib()::date, now(), p_selfie_path, v_nama, v_kelas)
   returning * into v_row;
 
-  -- 5. Catat ke pending_students untuk ditinjau admin
-  insert into pending_students (nama, kelas, checkin_id, selfie_path, status)
-  values (v_nama, v_kelas, v_row.id, p_selfie_path, 'pending')
-  returning id into v_pending_id;
+  -- 6. Pending hanya untuk nama baru; siswa terdaftar langsung dapat poin.
+  if v_student_id is null then
+    insert into pending_students (nama, kelas, checkin_id, selfie_path, status)
+    values (v_nama, v_kelas, v_row.id, p_selfie_path, 'pending')
+    returning id into v_pending_id;
+
+    v_morning := jsonb_build_object('status', 'menunggu_approval');
+  else
+    v_pending_id := null;
+    v_morning := sync_morning_from_checkin(v_row.id);
+  end if;
 
   return jsonb_build_object(
     'success', true,
     'checkin_id', v_row.id,
     'pending_id', v_pending_id,
+    'student_id', v_student_id,
     'timestamp', v_row.checked_in_at,
     'nama', v_nama,
     'kelas', v_kelas,
-    'selfie_path', v_row.selfie_path
+    'selfie_path', v_row.selfie_path,
+    'morning', v_morning
   );
 end;
 $$;
@@ -436,6 +470,7 @@ declare
   v_row pending_students;
   v_nis text;
   v_student_id bigint;
+  v_morning jsonb;
 begin
   select * into v_row from pending_students where id = p_id;
   if not found then
@@ -474,13 +509,17 @@ begin
   set status = 'approved', reviewed_at = now()
   where id = p_id;
 
-  -- Catat ke apresiasi "Berangkat Pagi" bila check-in ini yang terawal hari itu.
+  -- Catat ke apresiasi "Berangkat Pagi" untuk check-in yang baru ditautkan.
   -- (Fungsi sync_morning_from_checkin dibuat di bagian 12.)
   if v_row.checkin_id is not null then
-    perform sync_morning_from_checkin(v_row.checkin_id);
+    v_morning := sync_morning_from_checkin(v_row.checkin_id);
   end if;
 
-  return jsonb_build_object('success', true, 'student_id', v_student_id);
+  return jsonb_build_object(
+    'success', true,
+    'student_id', v_student_id,
+    'morning', v_morning
+  );
 end;
 $$;
 
@@ -505,9 +544,15 @@ $$;
 -- 10e. Daftar check-in hari ini (mendukung siswa manual & terdaftar).
 -- Untuk siswa terdaftar -> pakai nama/kelas dari tabel students.
 -- Untuk siswa manual    -> pakai nama_manual/kelas_manual.
+-- `student_id` dipakai dashboard untuk mencocokkan status poin dari
+-- list_morning_records(). Jangan join ke morning_records di sini karena
+-- fungsi ini didefinisikan sebelum tabel morning_records dibuat.
+drop function if exists list_today_checkins();
+
 create or replace function list_today_checkins()
 returns table (
   id bigint,
+  student_id bigint,
   nama text,
   kelas text,
   checked_in_at timestamptz,
@@ -519,6 +564,7 @@ security definer
 as $$
   select
     c.id,
+    c.student_id,
     coalesce(s.nama, c.nama_manual, '(tanpa nama)') as nama,
     coalesce(s.kelas, c.kelas_manual, '') as kelas,
     c.checked_in_at,
@@ -643,10 +689,13 @@ $$;
    Data tersimpan di server sehingga bisa dibuka dari perangkat mana pun
    dan tidak hilang bila cache browser dibersihkan.
 
-   Aturan: setiap 2x menjadi "paling pagi" -> 1 poin apresiasi.
+   Aturan: setiap check-in selama sesi QR aktif = 1 catatan = 1 poin.
+   Banyak siswa boleh tercatat pada tanggal yang sama; 1 siswa maksimal 1x
+   per tanggal. Semua check-in sebelum jam tutup sesi diperlakukan sama.
    ================================================================ */
 
--- 12a. Riwayat "paling pagi" per hari (1 siswa hanya 1x per tanggal).
+-- 12a. Riwayat berangkat pagi per hari (banyak siswa per tanggal;
+--      1 siswa hanya 1x per tanggal).
 create table if not exists morning_records (
   id bigint generated always as identity primary key,
   student_id bigint references students(id) on delete cascade not null,
@@ -687,8 +736,8 @@ alter table students add column if not exists poin_apresiasi int not null defaul
 alter table students add column if not exists telp text default '';
 alter table students add column if not exists alamat text default '';
 
--- 12c. Hitung ulang poin + sisa pagi seorang siswa dari morning_records.
--- Rumus (antisalah): total = jumlah catatan; poin = total / 2; sisa = total % 2.
+-- 12c. Hitung ulang poin seorang siswa dari morning_records.
+-- Rumus: 1 catatan berangkat pagi = 1 poin. Tidak ada sisa.
 create or replace function hitung_poin_siswa(p_student_id bigint)
 returns jsonb
 language plpgsql
@@ -699,7 +748,7 @@ declare
   v_poin int;
 begin
   select count(*) into v_total from morning_records where student_id = p_student_id;
-  v_poin := v_total / 2;  -- pembagian integer = floor
+  v_poin := v_total;
 
   update students set poin_apresiasi = v_poin where id = p_student_id;
 
@@ -707,14 +756,14 @@ begin
     'student_id', p_student_id,
     'total_pagi', v_total,
     'poin', v_poin,
-    'sisa', v_total % 2
+    'sisa', 0
   );
 end;
 $$;
 
--- 12d. Catat "paling pagi" untuk sebuah check-in yang baru disetujui.
--- Menentukan apakah check-in tersebut yang TERAWAL pada tanggal itu.
--- Return: { status: 'tercatat'|'bukan_terawal'|'sudah_ada'|'tidak_ada', ... }
+-- 12d. Catat "Berangkat Pagi" untuk sebuah check-in yang sudah tertaut.
+-- Semua check-in selama sesi aktif dicatat (bukan hanya yang terawal).
+-- Return: { status: 'tercatat'|'sudah_ada'|'tidak_ada', ... }
 create or replace function sync_morning_from_checkin(p_checkin_id bigint)
 returns jsonb
 language plpgsql
@@ -722,7 +771,6 @@ security definer
 as $$
 declare
   v_ci check_ins;
-  v_terawal check_ins;
   v_nama text;
   v_kelas text;
 begin
@@ -739,17 +787,6 @@ begin
   if exists (select 1 from morning_records m
              where m.student_id = v_ci.student_id and m.tanggal = v_ci.checkin_date) then
     return jsonb_build_object('status', 'sudah_ada');
-  end if;
-
-  -- Cari check-in TERAWAL pada tanggal tersebut
-  select * into v_terawal
-  from check_ins
-  where checkin_date = v_ci.checkin_date
-  order by checked_in_at asc
-  limit 1;
-
-  if v_terawal.id is distinct from v_ci.id then
-    return jsonb_build_object('status', 'bukan_terawal');
   end if;
 
   -- Ambil nama & kelas dari master siswa
@@ -770,7 +807,9 @@ begin
 end;
 $$;
 
--- 12e. Daftar siswa + total pagi + poin + sisa (untuk halaman apresiasi).
+-- 12e. Daftar siswa + total pagi + poin (untuk halaman apresiasi).
+-- 1 catatan berangkat pagi = 1 poin. `sisa` selalu 0 (dipertahankan agar
+-- bentuk respons lama tetap kompatibel dengan frontend).
 -- NOTE: drop dulu bila versi lama ada — CREATE OR REPLACE tidak boleh
 -- mengubah tipe return (versi lama hanya 7 kolom, tanpa jurusan/jk/telp/alamat).
 drop function if exists list_apresiasi_siswa();
@@ -801,17 +840,18 @@ as $$
     coalesce(s.telp, '') as telp,
     coalesce(s.alamat, '') as alamat,
     count(m.id)::bigint as total_pagi,
-    (count(m.id) / 2)::bigint as poin,
-    (count(m.id) % 2)::bigint as sisa
+    count(m.id)::bigint as poin,
+    0::bigint as sisa
   from students s
   left join morning_records m on m.student_id = s.id
   group by s.id, s.nama, s.kelas, s.nis, s.jurusan, s.jk, s.telp, s.alamat
-  order by (count(m.id) / 2) desc, s.nama asc;
+  order by count(m.id) desc, s.nama asc;
 $$;
 
--- 12f. Riwayat catatan pagi (untuk tampilan per tanggal / rekap).
+-- 12f. Riwayat catatan berangkat pagi (untuk tampilan per tanggal / rekap).
+-- `source` membedakan catatan otomatis dari check-in vs manual (koreksi admin).
 -- NOTE: drop dulu bila versi lama ada — CREATE OR REPLACE tidak boleh
--- mengubah tipe return (baris OUT lama tanpa kolom `checkin_at`).
+-- mengubah tipe return (baris OUT lama tanpa kolom `checkin_at`/`source`).
 drop function if exists list_morning_records(date, date);
 create or replace function list_morning_records(p_dari date default null, p_sampai date default null)
 returns table (
@@ -821,19 +861,22 @@ returns table (
   nama text,
   kelas text,
   recorded_at timestamptz,
-  checkin_at timestamptz
+  checkin_at timestamptz,
+  source text
 )
 language sql
 security definer
 as $$
-  select m.id, m.student_id, m.tanggal, m.nama, m.kelas, m.recorded_at, m.checkin_at
+  select
+    m.id, m.student_id, m.tanggal, m.nama, m.kelas,
+    m.recorded_at, m.checkin_at, m.source
   from morning_records m
   where (p_dari is null or m.tanggal >= p_dari)
     and (p_sampai is null or m.tanggal <= p_sampai)
-  order by m.tanggal desc, m.recorded_at asc;
+  order by m.tanggal desc, m.checkin_at asc nulls last, m.recorded_at asc;
 $$;
 
--- 12g. Catat "paling pagi" secara manual (untuk data lama / koreksi admin).
+-- 12g. Catat berangkat pagi secara manual (untuk data lama / koreksi admin).
 -- p_identitas boleh berupa id siswa (angka) atau NAMA siswa.
 -- checkin_at diisi OTOMATIS bila siswa punya check-in pada tanggal itu
 -- (jam daftar sebenarnya); bila tidak ada, dibiarkan null dan tampilan
@@ -893,7 +936,7 @@ begin
 end;
 $$;
 
--- 12h. Batalkan catatan pagi (koreksi admin).
+-- 12h. Batalkan catatan berangkat pagi (koreksi admin).
 create or replace function hapus_morning_record(p_student_id bigint, p_tanggal date)
 returns jsonb
 language plpgsql
@@ -914,7 +957,7 @@ begin
 end;
 $$;
 
--- 12i. Reset SELURUH catatan pagi sekaligus (menggantikan hapus satu-per-satu
+-- 12i. Reset SELURUH catatan berangkat pagi sekaligus (menggantikan hapus satu-per-satu
 -- dari browser). Cache poin semua siswa ikut dinolkan dalam satu transaksi.
 create or replace function reset_morning_all()
 returns jsonb
@@ -1008,6 +1051,143 @@ begin
   end loop;
 end
 $$;
+
+/* ================================================================
+   12k. BACKFILL: SEMUA CHECK-IN LAMA YANG SUDAH TERTAUT KE SISWA
+   ================================================================
+   Sebelum perubahan ini, hanya check-in TERAWAL per hari yang masuk ke
+   morning_records. Blok ini menambahkan semua check-in lama yang sudah
+   tertaut ke siswa, tanpa menghapus catatan yang sudah ada.
+   Idempotent: on conflict (student_id, tanggal) do nothing.
+
+   Sebelum menjalankan di database produksi, cek dulu apakah ada check-in
+   setelah jam tutup (contoh 06:40):
+     select count(*) as checkin_setelah_0640
+     from check_ins
+     where (checked_in_at at time zone 'Asia/Jakarta')::time >= '06:40';
+   Jika hasilnya bukan 0, tinjau dulu apakah check-in tersebut ikut
+   di-backfill atau perlu filter waktu.
+   ================================================================ */
+
+insert into morning_records
+  (student_id, tanggal, nama, kelas, source, checkin_at)
+select
+  c.student_id,
+  c.checkin_date,
+  s.nama,
+  coalesce(s.kelas, ''),
+  'checkin',
+  c.checked_in_at
+from check_ins c
+join students s on s.id = c.student_id
+where c.student_id is not null
+on conflict (student_id, tanggal) do nothing;
+
+-- Hitung ulang cache poin semua siswa (1 catatan = 1 poin).
+update students s
+set poin_apresiasi = coalesce((
+  select count(*)
+  from morning_records m
+  where m.student_id = s.id
+), 0);
+
+/* ================================================================
+   12l. KOREKSI: SISWA 0 POIN YANG SUDAH PERNAH CHECK-IN
+   ================================================================
+   Saat aturan lama masih berlaku, hanya check-in TERAWAL per hari yang
+   masuk ke morning_records (dan 2 catatan baru dihitung 1 poin). Siswa
+   yang pernah check-in tetapi tidak pernah menjadi yang terawal bisa
+   tetap 0 poin.
+
+   Blok ini memberi TEPAT 1 poin kepada setiap siswa yang:
+     - saat ini masih 0 poin (belum punya morning_records), dan
+     - punya minimal satu check-in (tertaut lewat student_id, atau
+       check-in manual lama yang belum tertaut dan cocok lewat nama+kelas).
+
+   Yang ditambahkan hanya SATU catatan per siswa, pada tanggal check-in
+   paling awal, memakai jam check-in aslinya. Jadi siswa tersebut tidak
+   langsung mendapat poin dari seluruh riwayat check-in-nya.
+
+   Idempotent:
+     - siswa yang sudah punya morning_records tidak diproses lagi;
+     - on conflict (student_id, tanggal) do nothing.
+
+   Catatan: blok 12k di atas sudah membackfill semua check-in tertaut.
+   Blok ini adalah jaring pengaman untuk siswa yang masih 0 poin,
+   terutama check-in manual lama yang belum tertaut ke tabel students.
+   ================================================================ */
+
+do $$
+declare
+  r record;
+  v_diberi int := 0;
+  v_rows int;
+begin
+  for r in
+    select distinct on (s.id)
+      s.id as student_id,
+      s.nama,
+      coalesce(s.kelas, '') as kelas,
+      c.checkin_date as tanggal,
+      c.checked_in_at
+    from students s
+    join check_ins c on (
+      c.student_id = s.id
+      or (
+        c.student_id is null
+        and regexp_replace(lower(trim(coalesce(c.nama_manual, ''))), '\s+', ' ', 'g')
+          = regexp_replace(lower(trim(s.nama)), '\s+', ' ', 'g')
+        and regexp_replace(lower(trim(coalesce(c.kelas_manual, ''))), '\s+', ' ', 'g')
+          = regexp_replace(lower(trim(coalesce(s.kelas, ''))), '\s+', ' ', 'g')
+      )
+    )
+    where s.poin_apresiasi = 0
+      and not exists (
+        select 1 from morning_records m where m.student_id = s.id
+      )
+    order by s.id, c.checked_in_at asc, c.id asc
+  loop
+    insert into morning_records
+      (student_id, tanggal, nama, kelas, source, checkin_at)
+    values
+      (r.student_id, r.tanggal, r.nama, r.kelas, 'checkin', r.checked_in_at)
+    on conflict (student_id, tanggal) do nothing;
+
+    get diagnostics v_rows = row_count;
+    if v_rows > 0 then
+      v_diberi := v_diberi + 1;
+      raise notice 'Poin 1 diberikan: % (%) - %', r.nama, r.kelas, r.tanggal;
+    end if;
+  end loop;
+
+  raise notice 'Total siswa 0 poin yang diberi 1 poin: %', v_diberi;
+end
+$$;
+
+-- Hitung ulang cache poin semua siswa setelah koreksi.
+update students s
+set poin_apresiasi = coalesce((
+  select count(*)
+  from morning_records m
+  where m.student_id = s.id
+), 0);
+
+-- Verifikasi: query ini harus mengembalikan 0 baris setelah blok 12l.
+-- select s.id, s.nama, s.kelas, s.poin_apresiasi
+-- from students s
+-- where s.poin_apresiasi = 0
+--   and exists (
+--     select 1 from check_ins c
+--     where c.student_id = s.id
+--        or (
+--          c.student_id is null
+--          and regexp_replace(lower(trim(coalesce(c.nama_manual, ''))), '\s+', ' ', 'g')
+--            = regexp_replace(lower(trim(s.nama)), '\s+', ' ', 'g')
+--          and regexp_replace(lower(trim(coalesce(c.kelas_manual, ''))), '\s+', ' ', 'g')
+--            = regexp_replace(lower(trim(coalesce(s.kelas, ''))), '\s+', ' ', 'g')
+--        )
+--   )
+-- order by s.nama;
 
 /* ================================================================
    13. JADWAL PIKET — DIHAPUS

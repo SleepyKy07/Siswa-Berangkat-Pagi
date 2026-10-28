@@ -61,19 +61,21 @@
 
       <button type="submit" class="btn" id="btnLanjut">&#128247; Lanjut Ambil Selfie</button>
     </form>
+
+    <p class="hint" id="scheduleInfo" style="display:none;margin:12px 0 0"></p>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script src="../assets/js/supabase-config.js?v=14"></script>
-<script src="../assets/js/supabase-client.js?v=14"></script>
+<script src="../assets/js/supabase-config.js?v=16"></script>
+<script src="../assets/js/supabase-client.js?v=16"></script>
 <script>
 'use strict';
 (function () {
   function $(s) { return document.querySelector(s); }
 
-  var namaInput, kelasInput, errBox, confirmBox, btnLanjut, form;
+  var namaInput, kelasInput, errBox, confirmBox, btnLanjut, form, scheduleInfo;
 
   function escapeHtml(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -138,6 +140,7 @@
     errBox = $('#errBox');
     confirmBox = $('#confirmBox');
     btnLanjut = $('#btnLanjut');
+    scheduleInfo = $('#scheduleInfo');
 
     // Cegah akses langsung via URL kalau sesi sedang NONAKTIF.
     // - Hanya redirect bila status BERHASIL dibaca dan memang nonaktif.
@@ -145,6 +148,12 @@
     window.SBPag.getSessionStatus().then(function (status) {
       if (status && !status.error && status.active === false) {
         window.location.replace('./index.html');
+        return;
+      }
+      if (status && !status.error && status.scheduled_starts_at && status.scheduled_ends_at) {
+        scheduleInfo.textContent = 'Absensi dibuka ' + status.scheduled_starts_at + '\u2013' +
+          status.scheduled_ends_at + '. Check-in setelah jam tutup tidak bisa.';
+        scheduleInfo.style.display = 'block';
       }
     }).catch(function () { /* diamkan, biarkan halaman tetap tampil */ });
 

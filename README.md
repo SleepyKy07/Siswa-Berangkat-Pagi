@@ -18,9 +18,9 @@ Program absensi sekolah menggunakan QR permanen + server-side validation.
 - **Status AKTIF / NONAKTIF**: Ditentukan server, tidak bisa diubah localStorage
 - **Auto Schedule**: Jam mulai/jam selesai diatur admin di Supabase
 - **Check-in Input Manual**: Siswa mengetik **nama & kelas** sendiri → selfie → simpan
-- **Data Pending**: Data siswa manual masuk ke tabel `pending_students`, ditinjau admin
-- **Siswa Paling Pagi**: Timestamp server terawal hari ini
-- **Dashboard Admin**: Status + daftar check-in + lihat selfie + tinjau data pending
+- **Data Pending**: Nama/kelas yang belum cocok dengan siswa terdaftar masuk `pending_students`, ditinjau admin
+- **Berangkat Pagi**: Semua check-in sebelum jam tutup sesi (mis. 06:40) dicatat dan diperlakukan sama (1x = 1 poin)
+- **Dashboard Admin**: Status + daftar check-in + status poin + lihat selfie + tinjau data pending
 
 ## Alur Scan QR
 
@@ -37,7 +37,7 @@ Isi nama & kelas (siswa mengetik sendiri)
    ↓
 Ambil selfie (kamera browser: preview → ambil → foto ulang / gunakan foto)
    ↓
-Konfirmasi → Simpan check-in (timestamp SERVER) + catat ke data pending
+Konfirmasi → Simpan check-in (timestamp SERVER) → langsung tercatat berangkat pagi bila nama+kelas cocok dengan siswa aktif; nama baru masuk data pending
 ```
 
 Identitas yang dipakai hanya: **nama**, **kelas**, **selfie**, **timestamp server**.
@@ -76,7 +76,9 @@ pesan **"Anda sudah melakukan absensi hari ini."**
 
 ## Data Pending (Nama/Kelas Manual)
 
-Setiap check-in manual dicatat di tabel `pending_students` dengan status `pending`.
+Check-in dengan **nama + kelas yang belum cocok** dengan siswa aktif dicatat di
+tabel `pending_students` dengan status `pending`. Siswa yang sudah terdaftar
+langsung tercatat sebagai berangkat pagi dan langsung mendapat poin.
 
 - Dashboard admin → kartu **Data Pending** → tombol **Setujui** / **Abai**
 - **Setujui** → baris dipindahkan ke tabel `students` (kolom `nis` diisi otomatis
@@ -84,6 +86,8 @@ Setiap check-in manual dicatat di tabel `pending_students` dengan status `pendin
 - **Abai** → status jadi `rejected`; check-in tetap tercatat
 - Check-in siswa yang belum disetujui tetap tampil di daftar harian dengan label
   **"belum terdaftar"**
+- Setelah **Setujui**, check-in ditautkan ke siswa dan catatan berangkat pagi
+  (poin) dibuat otomatis
 
 ## QR Permanen (untuk ditempel di gerbang)
 
@@ -151,6 +155,14 @@ Sertifikat dev disimpan di `.certs/` dan **tidak di-commit** (berisi private key
 
 1. Daftar di https://supabase.com → buat project baru
 2. Buka **SQL Editor** → jalankan script di `supabase/setup.sql`
+   - Untuk project lama, **jalankan ulang `setup.sql`**. Blok backfill akan
+     menambahkan semua check-in lama yang sudah tertaut ke siswa dan menghitung
+     ulang poin (1 catatan = 1 poin). Blok koreksi **12l** juga memberi **1 poin**
+     kepada siswa yang masih 0 poin tetapi sudah pernah check-in (termasuk
+     check-in manual lama yang belum tertaut, dicocokkan lewat nama + kelas).
+     Hanya 1 catatan per siswa dan idempotent. **Backup data dulu.**
+   - Sebelum backfill, cek apakah ada check-in setelah jam tutup:
+     `select count(*) from check_ins where (checked_in_at at time zone 'Asia/Jakarta')::time >= '06:40';`
 3. **Jika selfie tidak bisa dilihat** (upload sukses tapi tampil "tidak ditemukan"),
    jalankan juga `supabase/fix-storage.sql` — ini menambah policy SELECT yang
    dibutuhkan untuk membuat signed URL.
@@ -209,15 +221,20 @@ Dashboard dilindungi **PIN sederhana** (dicek di browser):
 ## Pencegahan Duplikat
 
 - Satu siswa hanya boleh 1 check-in valid per hari (`unique(student_id, checkin_date)`).
+- Anti-duplikat nama + kelas juga diterapkan untuk check-in manual pada hari yang sama.
 - Jika sudah check-in, muncul pesan: **"Anda sudah melakukan absensi hari ini."**
-- Validasi dilakukan di server (fungsi `submit_checkin()`), bukan di browser.
+- Validasi dilakukan di server (fungsi `submit_checkin_manual()`), bukan di browser.
 
-## Siswa Paling Pagi
+## Berangkat Pagi
 
-- **Semua** check-in valid tetap disimpan.
-- Sistem menandai siswa dengan `checked_in_at` (timestamp server) paling awal
-  sebagai **"Siswa Paling Pagi"** — ditampilkan di kartu khusus dashboard dan
-  label pada baris pertama tabel.
+- **Semua** check-in valid selama sesi QR aktif dicatat sebagai **"Berangkat Pagi"**.
+- Setiap **1 catatan = 1 poin** apresiasi.
+- Banyak siswa boleh tercatat pada tanggal yang sama; 1 siswa maksimal 1 catatan
+  per tanggal (`unique(student_id, tanggal)`).
+- Tidak ada lagi penanda siapa yang datang lebih dulu: semua siswa yang
+  berhasil check-in sebelum jam tutup sesi mendapat perlakuan dan poin yang sama.
+- Siswa terdaftar langsung mendapat poin saat check-in; siswa baru mendapat poin
+  setelah admin menyetujui data pending.
 
 ## Hapus Data (Admin)
 
@@ -234,6 +251,8 @@ Dashboard admin → kartu **Hapus Riwayat**:
 Yang terhapus: baris `check_ins`, `pending_students` yang sudah ditinjau
 (`approved`/`rejected`), dan **file selfie** di Storage.
 
+- **Catatan berangkat pagi dan poin tidak ikut terhapus** saat riwayat check-in
+  dihapus. Ini sengaja dipertahankan agar poin yang sudah diberikan tidak hilang.
 - Perlu konfirmasi dengan mengetik `HAPUS` (tidak bisa dibatalkan).
 - Jika sebagian file selfie gagal dihapus, data tetap terhapus dan jumlah kegagalan dilaporkan.
 
@@ -275,14 +294,14 @@ Halaman apresiasi kini **tersimpan di server** (bukan localStorage) sehingga bis
 dibuka dari perangkat mana pun dan tidak hilang bila cache dibersihkan:
 
 - **Data siswa** (nama, NIS, kelas, jurusan, JK, telp, alamat) → tabel `students`
-- **Catatan "paling pagi"** → tabel `morning_records` (1 siswa per tanggal), termasuk
-  **jam daftar presisi** (`checkin_at` = jam server saat siswa check-in; fallback
-  `recorded_at` bila catatan manual tanpa check-in)
-- **Poin apresiasi**: setiap **2x tercatat paling pagi = 1 poin** (dihitung server
+- **Catatan berangkat pagi** → tabel `morning_records` (banyak siswa per tanggal;
+  1 siswa maksimal 1x per tanggal), termasuk **jam daftar presisi**
+  (`checkin_at` = jam server saat siswa check-in; fallback `recorded_at` bila
+  catatan manual tanpa check-in)
+- **Poin apresiasi**: setiap **1x berangkat pagi = 1 poin** (dihitung server
   lewat `hitung_poin_siswa`, di-cache di kolom `students.poin_apresiasi`)
 - **Jam ditampilkan presisi** (jam:menit:detik) dan **selalu WIB** (`Asia/Jakarta`)
-  di kartu "Catat Pagi" (stat *Jam Tercatat* + kartu siswa terpilih) dan di
-  *Riwayat Siswa Pagi* — tidak ikut zona waktu perangkat pembuka halaman
+  di *Riwayat Berangkat Pagi* — tidak ikut zona waktu perangkat pembuka halaman
 - **Import CSV** menulis langsung ke server; baris dengan NIS duplikat dilewati
 - **Cadangkan** mengunduh data server lengkap (siswa + pagi) sebagai JSON
   (fitur *Pulihkan* dihapus — data master ada di server)
@@ -297,10 +316,13 @@ dibuka dari perangkat mana pun dan tidak hilang bila cache dibersihkan:
 Halaman ini **tidak memakai PIN** — langsung terbuka (tombol **Kunci/Keluar** dan
 layar PIN dihapus). PIN hanya dipakai oleh dashboard admin (`checkin/dashboard.html`).
 
-> **Penting**: pengaitan otomatis ke apresiasi terjadi saat admin **menyetujui**
-> data pending — jika check-in siswa adalah yang terawal hari itu dan belum
-> tercatat, `approve_pending_student()` memanggil `sync_morning_from_checkin()`.
-> Catatan juga bisa ditambah manual dari halaman apresiasi (`tambah_morning_manual`).
+> **Penting**: pengaitan otomatis ke apresiasi terjadi saat check-in (siswa
+> terdaftar) atau saat admin **menyetujui** data pending. `submit_checkin_manual()`
+> dan `approve_pending_student()` memanggil `sync_morning_from_checkin()`, yang
+> mencatat semua check-in yang sudah tertaut — bukan hanya yang terawal.
+> Penambahan manual tidak lagi tersedia di UI; koreksi dilakukan lewat tombol
+> **Batalkan** (`hapus_morning_record`). Fungsi `tambah_morning_manual()` tetap
+> ada untuk kebutuhan SQL/API.
 
 > **Peringatan CASCADE**: menghapus siswa dari halaman apresiasi juga menghapus
 > seluruh riwayat check-in (`check_ins`) dan catatan pagi (`morning_records`)
@@ -311,21 +333,21 @@ layar PIN dihapus). PIN hanya dipakai oleh dashboard admin (`checkin/dashboard.h
 | Fungsi | Kegunaan |
 |--------|----------|
 | `get_session_status()` | Status AKTIF/NONAKTIF + jadwal + waktu server |
-| `submit_checkin_manual(p_nama, p_kelas, p_selfie_path)` | Simpan check-in manual (timestamp SERVER + anti-duplikat nama/kelas) |
+| `submit_checkin_manual(p_nama, p_kelas, p_selfie_path)` | Simpan check-in (timestamp SERVER + anti-duplikat nama/kelas & student_id); siswa terdaftar langsung dapat poin |
 | `list_pending_students(p_status)` | Daftar data siswa pending untuk admin |
-| `approve_pending_student(p_id)` | Setujui → masukkan ke tabel `students` |
+| `approve_pending_student(p_id)` | Setujui → masukkan ke tabel `students` + catat berangkat pagi/poin |
 | `reject_pending_student(p_id)` | Abaikan data pending |
-| `list_today_checkins()` | Daftar check-in hari ini (siswa terdaftar & manual) |
+| `list_today_checkins()` | Daftar check-in hari ini (termasuk `student_id` untuk status poin) |
 | `collect_selfie_paths(p_mode, p_before_date)` | Kumpulkan path selfie yang akan dihapus |
 | `count_history_to_delete(p_mode, p_before_date)` | Hitung jumlah data yang akan dihapus |
 | `delete_checkin_history(p_mode, p_before_date)` | Hapus data check-in + pending yang ditinjau |
-| `hitung_poin_siswa(p_student_id)` | Hitung ulang poin apresiasi seorang siswa |
-| `sync_morning_from_checkin(p_checkin_id)` | Catat "paling pagi" bila check-in terawal hari itu |
-| `list_apresiasi_siswa()` | Daftar siswa + total pagi + poin + sisa (halaman apresiasi) |
-| `list_morning_records(p_dari, p_sampai)` | Riwayat catatan "paling pagi" |
-| `tambah_morning_manual(p_identitas, p_tanggal)` | Catat "paling pagi" manual (koreksi/data lama) |
-| `hapus_morning_record(p_student_id, p_tanggal)` | Batalkan satu catatan pagi |
-| `reset_morning_all()` | Hapus SEMUA catatan pagi + nolkan poin (satu transaksi) |
+| `hitung_poin_siswa(p_student_id)` | Hitung ulang poin apresiasi (1 catatan = 1 poin) |
+| `sync_morning_from_checkin(p_checkin_id)` | Catat semua check-in yang sudah tertaut sebagai berangkat pagi (bukan hanya terawal) |
+| `list_apresiasi_siswa()` | Daftar siswa + total pagi + poin (halaman apresiasi) |
+| `list_morning_records(p_dari, p_sampai)` | Riwayat catatan berangkat pagi + `source` (`checkin`/`manual`) |
+| `tambah_morning_manual(p_identitas, p_tanggal)` | Catat berangkat pagi manual (koreksi/data lama) |
+| `hapus_morning_record(p_student_id, p_tanggal)` | Batalkan satu catatan berangkat pagi |
+| `reset_morning_all()` | Hapus SEMUA catatan berangkat pagi + nolkan poin (satu transaksi) |
 
 Mode untuk ketiga fungsi di atas: `before` (sebelum tanggal), `today` (hari ini),
 `all_before` (semua riwayat), `all` (semua termasuk hari ini).
@@ -421,17 +443,49 @@ perlu pasang ulang.
     catatan pagi) lalu menghitung ulang poin. **Jalankan ulang `setup.sql`**.
 13. **Jadwal piket di halaman apresiasi dihapus**: karena jadwal petugas gerbang
     sudah lengkap di program kerja terpisah, bagian jadwal piket (tombol 📅 Jadwal,
-    kalender, editor petugas, dan kotak "Petugas piket hari ini" di tab Catat Pagi)
+    kalender, editor petugas, dan kotak "Petugas piket hari ini" di halaman apresiasi)
     dihapus dari `berangkat-pagi/index.html`. Tabel `piket_schedule` + fungsi
     `simpan_piket_tanggal`/`hapus_piket_tanggal`/`list_piket` beserta wrapper
     kliennya dibuang. **Jalankan ulang `setup.sql`** — bagian 13 kini berupa blok
     `drop` idempotent yang membersihkan tabel & fungsi lama.
 14. **PIN halaman apresiasi dihapus**: halaman `berangkat-pagi/` kini **tanpa PIN** —
     layar PIN, tombol "Kunci/Keluar", dan logikanya dibuang. PIN tetap dipakai
-    dashboard admin saja. Selain itu, **progress "Menuju apresiasi"** di tab Catat
-    Pagi, CSV, dan papan peringkat kini menampilkan **sisa (0/2–1/2)** — bukan total
+    dashboard admin saja. Selain itu, **progress "Menuju apresiasi"** di halaman
+    apresiasi, CSV, dan papan peringkat kini menampilkan **sisa (0/2–1/2)** — bukan total
     mentah, sehingga tidak lagi melebihi batas (mis. "3/2"). Saat mencapai 2 catatan
     (genap), progress **kembali 0/2** sementara **poin tetap bertambah**.
+15. **Semua check-in selama sesi = 1 poin**: aturan lama yang hanya memberi poin
+    ke satu siswa diganti. Setiap check-in yang berhasil selama QR aktif (mis.
+    06:00–06:40, diatur admin) dicatat sebagai berangkat pagi dan mendapat 1 poin.
+    Banyak siswa boleh tercatat pada tanggal yang sama; 1 siswa maksimal 1x per
+    tanggal. Siswa terdaftar langsung mendapat poin saat check-in; nama baru
+    mendapat poin setelah disetujui. `sync_morning_from_checkin()` tidak lagi
+    mensyaratkan check-in terawal, `submit_checkin_manual()` langsung menautkan
+    siswa terdaftar, `hitung_poin_siswa()`/`list_apresiasi_siswa()` memakai
+    1 catatan = 1 poin, `list_today_checkins()` mengembalikan `student_id`, dan
+    `list_morning_records()` mengembalikan `source`. Halaman apresiasi kini
+    menampilkan banyak siswa per tanggal, tanpa penanda siapa yang datang lebih
+    dulu. **Jalankan ulang `setup.sql`** untuk backfill check-in lama
+    (backup dulu; cek check-in setelah 06:40).
+16. **Tab Catat Pagi dihapus**: halaman `berangkat-pagi/` kini hanya punya tab
+    **Data Siswa** dan **Papan Apresiasi**. Input tanggal, statistik harian,
+    daftar "Tercatat pada Tanggal Ini", tombol Batalkan per siswa, dan Reset
+    Catatan per tanggal dihapus. Waktu scan tetap terlihat di **Riwayat Berangkat
+    Pagi** (nama, kelas, tanggal, jam WIB). Koreksi massal tetap lewat
+    **Reset Papan**.
+17. **Koreksi siswa 0 poin**: blok `12l` di `setup.sql` memberi **1 poin**
+    kepada siswa yang masih 0 poin tetapi punya minimal satu check-in — termasuk
+    check-in manual lama yang belum tertaut ke `students` (dicocokkan lewat
+    nama + kelas ternormalisasi). Yang ditambahkan blok ini hanya satu
+    `morning_records` pada tanggal check-in paling awal, memakai jam check-in
+    aslinya — bukan seluruh riwayat check-in siswa tersebut. Idempotent: siswa
+    yang sudah punya catatan dilewati dan `on conflict` mencegah duplikat.
+    **Jalankan ulang `setup.sql`** (backup dulu). Query verifikasi ada di
+    komentar blok `12l`.
+18. **Badge "manual" di riwayat dihapus**: label `manual` pada *Riwayat
+    Berangkat Pagi* dihapus agar tidak membingungkan. Data
+    `morning_records.source` tetap disimpan di server, tetapi tidak lagi
+    ditampilkan di UI.
 
 ## Cara Menjalankan Secara Lokal (untuk testing)
 
@@ -444,6 +498,6 @@ perlu pasang ulang.
    Buka `https://localhost:8443/` (terima peringatan sertifikat self-signed).
 
 2. **Pastikan `supabase/setup.sql` terbaru sudah dijalankan** di SQL Editor
-   Supabase (bagian 12–13 diperlukan halaman apresiasi).
+   Supabase (bagian 10–13 diperlukan halaman apresiasi & check-in).
 
 3. PIN default: `1234` (ganti di `assets/js/supabase-config.js`).

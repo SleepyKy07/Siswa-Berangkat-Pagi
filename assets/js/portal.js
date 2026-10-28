@@ -36,7 +36,7 @@
     {
       ikon: "\u{1F305}",
       judul: "Berangkat Pagi",
-      deskripsi: "Program apresiasi untuk siswa yang datang paling pagi. Setiap 2x berangkat paling pagi, siswa menerima apresiasi.",
+      deskripsi: "Program apresiasi untuk siswa yang berangkat sebelum QR ditutup. Setiap 1x berangkat pagi = 1 poin.",
       target: "./berangkat-pagi/",
       w1: "#4338ca",
       w2: "#6366f1",

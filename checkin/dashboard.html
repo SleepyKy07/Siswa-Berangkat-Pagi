@@ -23,6 +23,7 @@
     .tag{display:inline-flex;align-items:center;padding:4px 9px;border-radius:999px;background:#fef3c7;color:#92400e;font-size:.7rem;font-weight:800}
     .tag.sukses{background:#d1fae5;color:#065f46}
     .tag.batal{background:#fee2e2;color:#991b1b}
+    .tag.netral{background:#e6f6f3;color:var(--primary-dark)}
     .action-row{display:flex;gap:8px;margin:12px 0;flex-wrap:wrap}
     .btn{border:0;border-radius:11px;padding:11px 16px;min-height:42px;font:700 .82rem inherit;cursor:pointer;transition:.18s;white-space:nowrap}
     .btn.primary{background:var(--primary);color:#fff}
@@ -67,7 +68,7 @@
       </div>
     </div>
     <p class="small">Data diperbarui otomatis dari server. Waktu memakai jam server, bukan jam device siswa.
-      <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:99px;background:#e6f6f3;color:var(--primary-dark);font-weight:700;font-size:.7rem;">versi 14</span>
+      <span style="display:inline-block;margin-left:6px;padding:2px 7px;border-radius:99px;background:#e6f6f3;color:var(--primary-dark);font-weight:700;font-size:.7rem;">versi 16</span>
     </p>
     <div class="action-row" style="margin-top:10px">
       <a class="btn soft" href="./qr.html" target="_blank" rel="noopener" style="text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">&#128243; Tampilkan QR Absensi</a>
@@ -100,10 +101,10 @@
     <div class="small" style="margin-top:6px">Contoh: 06:00 &ndash; 07:00 = otomatis aktif pukul 06:00, nonaktif pukul 07:00.</div>
   </div>
 
-  <!-- Siswa Paling Pagi -->
+  <!-- Berangkat Pagi Hari Ini -->
   <div class="card gold">
-    <h2>&#127942; Siswa Paling Pagi</h2>
-    <div id="earliestContainer" class="empty">Memuat&hellip;</div>
+    <h2>&#127774; Berangkat Pagi Hari Ini</h2>
+    <div id="morningSummary" class="stats"><div class="empty">Memuat&hellip;</div></div>
   </div>
 
   <!-- Check-in Hari Ini -->
@@ -225,8 +226,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script src="../assets/js/supabase-config.js?v=14"></script>
-<script src="../assets/js/supabase-client.js?v=14"></script>
+<script src="../assets/js/supabase-config.js?v=16"></script>
+<script src="../assets/js/supabase-client.js?v=16"></script>
 <script>
 'use strict';
 (function () {
@@ -306,11 +307,11 @@
     // Bug lama: saat reload/hard-refresh dalam kondisi sudah unlock,
     // unlockDashboard() dipanggil SEBELUM variabel-variabel ini terisi,
     // sehingga initDashboard() melempar TypeError dan kartu
-    // "Siswa Paling Pagi" + "Check-in Hari Ini" macet di "Memuat…".
+    // "Berangkat Pagi Hari Ini" + "Check-in Hari Ini" macet di "Memuat…".
     var statusCard = $('#statusCard');
     // Status sesi terakhir dari server (dipakai untuk prefill pesan di modal)
     var lastStatus = null;
-    var earliestContainer = $('#earliestContainer');
+    var morningSummary = $('#morningSummary');
     var todayCheckinsContainer = $('#todayCheckinsContainer');
     var modalToggle = $('#modalToggle');
     var formToggle = $('#formToggle');
@@ -329,7 +330,7 @@
 
     // 1. Muat & render dashboard
     async function initDashboard() {
-      showLoading(earliestContainer);
+      showLoading(morningSummary);
       showLoading(todayCheckinsContainer);
 
       // A. Status sesi
@@ -339,7 +340,7 @@
         $('#statusDisplay').innerHTML =
           '<div class="stat"><span>Status</span><b class="tag batal">ERROR</b></div>' +
           '<div class="stat"><span>Detail</span><br>' + escapeHtml(statusResult.error) + '</div>';
-        earliestContainer.innerHTML = '<div class="empty">Tidak bisa memuat data.</div>';
+        morningSummary.innerHTML = '<div class="empty">Tidak bisa memuat data.</div>';
         todayCheckinsContainer.innerHTML = '<div class="empty">Tidak bisa memuat data.</div>';
         return;
       }
@@ -362,38 +363,49 @@
           '<div class="stat"><span>Waktu Server</span><br>' + escapeHtml(statusResult.server_time || '-') + '</div>';
       }
 
-      // B. Siswa paling pagi
-      var earliest = await window.SBPag.getEarliestCheckInToday();
-      if (earliest) {
-        earliestContainer.innerHTML =
-          '<div class="stat" style="background:#fff"><strong style="font-size:1.1rem;color:var(--primary-dark)">' + escapeHtml(earliest.student.nama) + '</strong></div>' +
-          '<div class="stat" style="background:#fff"><span>Kelas</span><br>' + escapeHtml(earliest.student.kelas || '-') + '</div>' +
-          '<div class="stat" style="background:#fff"><span>Waktu</span><br>' + escapeHtml(fmtTime(earliest.timestamp)) + '</div>';
-      } else {
-        earliestContainer.innerHTML = '<div class="empty">Belum ada check-in hari ini.</div>';
-      }
+      // B. Ringkasan berangkat pagi hari ini
+      var today = await window.SBPag.getServerDate();
+      var checkIns = await window.SBPag.getTodayCheckIns();
+      checkIns = checkIns || [];
+      var morning = await window.SBPag.listMorningRecords(today, today);
+      var morningItems = (morning && morning.items) ? morning.items : [];
+      var recordedIds = new Set();
+      morningItems.forEach(function (m) {
+        if (m.student_id != null) recordedIds.add(String(m.student_id));
+      });
+
+      // Urut waktu check-in
+      checkIns.sort(function (a, b) { return new Date(a.checked_in_at) - new Date(b.checked_in_at); });
+
+      var recordedCount = checkIns.filter(function (ci) {
+        return ci.student_id != null && recordedIds.has(String(ci.student_id));
+      }).length;
+      var pendingCount = checkIns.filter(function (ci) { return ci.is_pending; }).length;
+
+      morningSummary.innerHTML =
+        '<div class="stat"><span>Check-in Hari Ini</span><b>' + checkIns.length + '</b></div>' +
+        '<div class="stat"><span>Sudah Tercatat</span><b>' + recordedCount + '</b></div>' +
+        '<div class="stat"><span>Menunggu Approve</span><b>' + pendingCount + '</b></div>';
 
       // C. Daftar check-in hari ini
-      var checkIns = await window.SBPag.getTodayCheckIns();
-      renderTodayCheckins(checkIns);
+      renderTodayCheckins(checkIns, recordedIds);
     }
 
-    function renderTodayCheckins(checkIns) {
+    function renderTodayCheckins(checkIns, recordedIds) {
       if (!checkIns || checkIns.length === 0) {
         todayCheckinsContainer.innerHTML = '<div class="empty">Belum ada check-in hari ini.</div>';
         return;
       }
 
-      // Urut paling pagi dulu (perbaikan bug: pakai new Date(...))
+      // Urut waktu check-in (pakai new Date(...))
       checkIns.sort(function (a, b) { return new Date(a.checked_in_at) - new Date(b.checked_in_at); });
 
       var html = '<table><thead><tr>' +
-        '<th>No</th><th>Nama</th><th>Kelas</th><th>Waktu</th><th>Selfie</th>' +
+        '<th>No</th><th>Nama</th><th>Kelas</th><th>Waktu</th><th>Status Pagi</th><th>Selfie</th>' +
         '</tr></thead><tbody>';
 
       checkIns.forEach(function (ci, idx) {
         var no = idx + 1;
-        var isEarliest = idx === 0;
         var selfieCell;
         if (ci.selfie_path) {
           selfieCell = '<button class="btn soft btn-small btn-selfie" data-path="' + escapeHtml(ci.selfie_path) + '" data-nama="' + escapeHtml(ci.nama || '') + '">&#128247; Lihat</button>';
@@ -404,11 +416,22 @@
         if (ci.is_pending) {
           nameCell += ' <span class="tag">belum terdaftar</span>';
         }
-        html += '<tr' + (isEarliest ? ' style="background:#fffbeb"' : '') + '>' +
+
+        var statusCell;
+        if (ci.student_id != null && recordedIds && recordedIds.has(String(ci.student_id))) {
+          statusCell = '<span class="tag sukses">&#10003; +1 poin</span>';
+        } else if (ci.is_pending) {
+          statusCell = '<span class="tag">menunggu approve</span>';
+        } else {
+          statusCell = '<span class="tag netral">belum tercatat</span>';
+        }
+
+        html += '<tr>' +
           '<td>' + no + '</td>' +
-          '<td>' + nameCell + (isEarliest ? ' <span class="tag">paling pagi</span>' : '') + '</td>' +
+          '<td>' + nameCell + '</td>' +
           '<td>' + escapeHtml(ci.kelas || '-') + '</td>' +
           '<td>' + escapeHtml(fmtTime(ci.checked_in_at)) + '</td>' +
+          '<td>' + statusCell + '</td>' +
           '<td>' + selfieCell + '</td>' +
           '</tr>';
       });

@@ -369,7 +369,9 @@ var SBPag = (function () {
    * @param {string} nama - nama siswa (input bebas)
    * @param {string} kelas - kelas siswa (input bebas)
    * @param {string} selfieDataUrl - data URL foto selfie (opsional)
-   * @returns {Promise<Object>} { success, nama, kelas, timestamp, selfiePath } | { error, detail }
+   * @returns {Promise<Object>} { success, nama, kelas, timestamp, selfiePath,
+   *   checkinId, pendingId, morning } | { error, detail }
+   *   `morning` = { status: 'tercatat'|'menunggu_approval'|'sudah_ada', ... }
    */
   async function submitCheckInManual(nama, kelas, selfieDataUrl) {
     if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
@@ -422,7 +424,8 @@ var SBPag = (function () {
         timestamp: data.timestamp,
         selfiePath: data.selfie_path || selfiePath,
         checkinId: data.checkin_id,
-        pendingId: data.pending_id
+        pendingId: data.pending_id,
+        morning: data.morning || null
       };
     } catch (err) {
       console.error('[SB] submitCheckInManual exception:', err);
@@ -442,10 +445,11 @@ var SBPag = (function () {
   // --- TODAY CHECK-INS (dashboard admin) ---
 
   /**
-   * Daftar check-in hari ini (tanggal server), urut dari paling pagi.
+   * Daftar check-in hari ini (tanggal server), urut waktu check-in.
    * Memakai RPC list_today_checkins() yang mendukung siswa terdaftar
    * maupun siswa manual (nama/kelas diketik sendiri).
-   * @returns {Promise<Array>} array { id, nama, kelas, checked_in_at, selfie_path, is_pending }
+   * @returns {Promise<Array>} array { id, student_id, nama, kelas,
+   *   checked_in_at, selfie_path, is_pending }
    */
   async function getTodayCheckIns() {
     if (!(await ready())) return [];
@@ -461,29 +465,6 @@ var SBPag = (function () {
       console.error('[SB] getTodayCheckIns exception:', err);
       return [];
     }
-  }
-
-  // --- EARLIEST CHECK-IN (Siswa paling pagi) ---
-
-  /**
-   * Check-in terawal hari ini = "Siswa Paling Pagi".
-   * Semua check-in tetap tersimpan; ini hanya menandai yang terawal.
-   * @returns {Promise<Object>} { student:{nama,kelas}, timestamp } | null
-   */
-  async function getEarliestCheckInToday() {
-    var checkIns = await getTodayCheckIns();
-    if (!checkIns || checkIns.length === 0) return null;
-
-    checkIns.sort(function (a, b) { return new Date(a.checked_in_at) - new Date(b.checked_in_at); });
-    var earliest = checkIns[0];
-
-    return {
-      student: {
-        nama: earliest.nama || 'Siswa',
-        kelas: earliest.kelas || ''
-      },
-      timestamp: earliest.checked_in_at
-    };
   }
 
   // --- SELFIE UNTUK ADMIN ---
@@ -822,9 +803,12 @@ var SBPag = (function () {
   }
 
   /**
-   * Riwayat catatan "paling pagi".
+   * Riwayat catatan berangkat pagi.
    * @param {string} [dari] - 'YYYY-MM-DD'
    * @param {string} [sampai] - 'YYYY-MM-DD'
+   * @returns {Promise<Object>} { items: Array, error }
+   *   Tiap item: { id, student_id, tanggal, nama, kelas, recorded_at,
+   *   checkin_at, source: 'checkin'|'manual' }
    */
   async function listMorningRecords(dari, sampai) {
     if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI', items: [] };
@@ -842,7 +826,7 @@ var SBPag = (function () {
   }
 
   /**
-   * Catat "paling pagi" secara manual (untuk data lama / koreksi).
+   * Catat berangkat pagi secara manual (untuk data lama / koreksi).
    * @param {string|number} identitas - id siswa ATAU nama siswa
    * @param {string} tanggal - 'YYYY-MM-DD'
    */
@@ -863,7 +847,7 @@ var SBPag = (function () {
   }
 
   /**
-   * Batalkan catatan "paling pagi".
+   * Batalkan catatan berangkat pagi.
    * @param {number|string} studentId
    * @param {string} tanggal - 'YYYY-MM-DD'
    */
@@ -884,8 +868,9 @@ var SBPag = (function () {
   }
 
   /**
-   * Sinkronkan satu check-in ke apresiasi (biasanya dipanggil server saat
-   * menyetujui pending; tersedia juga untuk keperluan koreksi manual).
+   * Sinkronkan satu check-in ke apresiasi. Semua check-in yang sudah tertaut
+   * ke siswa dicatat (bukan hanya yang terawal). Biasanya dipanggil server
+   * saat check-in atau saat menyetujui pending; tersedia juga untuk koreksi.
    * @param {number|string} checkinId
    */
   async function syncMorningFromCheckin(checkinId) {
@@ -901,7 +886,7 @@ var SBPag = (function () {
   }
 
   /**
-   * Reset SELURUH catatan "paling pagi" + poin (satu panggilan server).
+   * Reset SELURUH catatan berangkat pagi + poin (satu panggilan server).
    * @returns {Promise<Object>} { success, terhapus } | { error }
    */
   async function resetMorningAll() {
@@ -937,7 +922,6 @@ var SBPag = (function () {
     uploadSelfie: uploadSelfie,
     submitCheckInManual: submitCheckInManual,
     getTodayCheckIns: getTodayCheckIns,
-    getEarliestCheckInToday: getEarliestCheckInToday,
     getSelfieUrl: getSelfieUrl,
     getSelfieBlob: getSelfieBlob,
     revokeSelfieBlob: revokeSelfieBlob,

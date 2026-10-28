@@ -15,7 +15,9 @@
     h2{font-size:1.2rem;color:var(--primary-dark);margin-bottom:16px;text-align:center}
     .greet{font-size:1.05rem;color:var(--primary-dark);text-align:center;margin-bottom:6px}
     .meta{text-align:center;font-size:.82rem;color:var(--muted);margin-bottom:20px}
-    .notice{padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:.83rem;margin:12px 0}
+    .notice{padding:12px 14px;border-radius:12px;background:#fffbeb;border:1px solid #fde68a;color:#92400e;font-size:.83rem;margin:12px 0;line-height:1.5}
+    .notice.ok{background:#ecfdf5;border-color:#6ee7b7;color:#065f46}
+    .notice.netral{background:#f0fdfa;border-color:#c9eeea;color:var(--primary-dark)}
     .small{font-size:.78rem;color:var(--muted);text-align:center;margin-top:12px}
   </style>
 </head>
@@ -29,7 +31,7 @@
     <div class="greet">Selamat, <strong id="studentName">Siswa</strong>!</div>
     <div class="meta" id="studentMeta">&nbsp;</div>
 
-    <div class="notice">Absensi berhasil dicatat di server.</div>
+    <div class="notice" id="morningNotice">Absensi berhasil dicatat di server.</div>
 
     <div class="small">Waktu server: <span id="serverTimestamp">-</span></div>
   </div>
@@ -38,8 +40,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-<script src="../assets/js/supabase-config.js?v=14"></script>
-<script src="../assets/js/supabase-client.js?v=14"></script>
+<script src="../assets/js/supabase-config.js?v=16"></script>
+<script src="../assets/js/supabase-client.js?v=16"></script>
 <script>
 'use strict';
 (function () {
@@ -51,8 +53,34 @@
   }
   function formatTs(ts) {
     if (!ts) return '-';
-    try { return new Date(ts).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'medium' }); }
-    catch (e) { return ts; }
+    try {
+      return new Date(ts).toLocaleString('id-ID', {
+        dateStyle: 'medium',
+        timeStyle: 'medium',
+        timeZone: 'Asia/Jakarta'
+      }) + ' WIB';
+    } catch (e) { return ts; }
+  }
+
+  function tampilkanStatusPagi(morning) {
+    var el = $('#morningNotice');
+    if (!el) return;
+
+    if (morning && morning.status === 'tercatat') {
+      var poin = morning.ringkasan ? Number(morning.ringkasan.poin) : NaN;
+      el.className = 'notice ok';
+      el.textContent = 'Berangkat pagi tercatat! +1 poin.' +
+        (isFinite(poin) ? ' Total poin: ' + poin + '.' : '');
+    } else if (morning && morning.status === 'menunggu_approval') {
+      el.className = 'notice';
+      el.textContent = 'Check-in tercatat. Data kamu menunggu verifikasi admin; poin diberikan setelah disetujui.';
+    } else if (morning && morning.status === 'sudah_ada') {
+      el.className = 'notice netral';
+      el.textContent = 'Kamu sudah tercatat berangkat pagi hari ini.';
+    } else {
+      el.className = 'notice';
+      el.textContent = 'Absensi berhasil dicatat di server.';
+    }
   }
 
   document.addEventListener('DOMContentLoaded', async function () {
@@ -62,6 +90,12 @@
 
     var stored = sessionStorage.getItem('lastCheckinStudent');
     var storedTs = sessionStorage.getItem('lastCheckinTimestamp');
+    var storedMorning = sessionStorage.getItem('lastCheckinMorning');
+    var morning = null;
+
+    if (storedMorning) {
+      try { morning = JSON.parse(storedMorning); } catch (e) { /* ignore */ }
+    }
 
     if (stored) {
       try {
@@ -71,7 +105,7 @@
         tsEl.textContent = formatTs(storedTs);
       } catch (e) { /* ignore */ }
     } else {
-      // Fallback: ambil check-in terawal hari ini (siswa paling pagi)
+      // Fallback: ambil check-in hari ini sebagai tampilan awal.
       var checkIns = await window.SBPag.getTodayCheckIns();
       if (checkIns && checkIns.length > 0) {
         var first = checkIns[0];
@@ -81,6 +115,7 @@
       }
     }
 
+    tampilkanStatusPagi(morning);
   });
 })();
 </script>
