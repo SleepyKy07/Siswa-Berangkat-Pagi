@@ -66,17 +66,20 @@
     <div class="notice">Untuk project lama yang sudah berisi data, <strong>backup dulu</strong> sebelum menjalankan ulang script — blok backfill/koreksi menambah catatan poin.</div>
     <div class="notice">Koreksi khusus jam check-in <strong>&gt;= 06:40</strong> ada di file terpisah <code>supabase/fix-jam-0640.sql</code>. Jalankan <strong>sekali</strong> setelah backup; script ini tidak dijalankan otomatis oleh <code>setup.sql</code>.</div>
     <div class="notice ok">Fungsi <code>get_session_status()</code> dan <code>submit_checkin_manual()</code> memakai jam server PostgreSQL sebagai sumber waktu utama. Device siswa tidak dipercaya untuk waktu.</div>
+    <div class="notice">Untuk project yang <strong>sudah berjalan</strong>, fungsi alur approval terbaru ada di <code>supabase/approval-flow.sql</code>. Jalankan file itu <strong>sekali</strong> di SQL Editor (backup dulu) agar semua scan baru masuk pending dan poin baru dicatat setelah disetujui.</div>
   </div>
 
   <div class="card">
     <h2>2b. Data Siswa (input manual)</h2>
     <p>Siswa <strong>mengetik nama &amp; kelas sendiri</strong> saat check-in. Tidak perlu mengisi data siswa terlebih dahulu.</p>
     <ol>
-      <li>Setiap check-in manual otomatis dicatat di tabel <code>pending_students</code>.</li>
+      <li>Setiap check-in (termasuk siswa yang sudah terdaftar) dicatat di tabel <code>pending_students</code> dan <strong>belum</strong> mendapat poin.</li>
       <li>Buka <strong>checkin/dashboard.html</strong> &rarr; kartu <strong>Data Pending</strong>.</li>
-      <li>Klik <strong>Setujui</strong> untuk memasukkan siswa ke tabel <code>students</code>
-        (kolom <code>nis</code> diisi otomatis <code>AUTO-&lt;id&gt;</code>), atau <strong>Abai</strong>.</li>
+      <li>Klik <strong>Setujui</strong> untuk menautkan check-in ke siswa yang cocok atau membuat siswa baru
+        (kolom <code>nis</code> diisi otomatis <code>AUTO-&lt;id&gt;</code>). Poin baru dicatat setelah itu.
+        Klik <strong>Abai</strong> untuk menolak tanpa memberi poin.</li>
     </ol>
+    <div class="notice">Siswa terdaftar yang belum disetujui tampil sebagai <b>menunggu approve</b>. Label <b>belum terdaftar</b> hanya untuk check-in yang belum tertaut ke tabel <code>students</code>.</div>
     <div class="notice">Anti-duplikat dicek dari <b>nama + kelas</b> pada hari yang sama (abaikan besar/kecil huruf).</div>
   </div>
 

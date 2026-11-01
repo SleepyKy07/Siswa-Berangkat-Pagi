@@ -117,15 +117,16 @@
     <p class="small" style="margin-top:8px">&#128274; Selfie disimpan di storage privat. Tombol &ldquo;Lihat Selfie&rdquo; membuat tautan sementara (berlaku 1 jam).</p>
   </div>
 
-  <!-- Data siswa pending (nama/kelas diketik manual) -->
+  <!-- Semua check-in menunggu persetujuan admin -->
   <div class="card">
     <div class="section-head">
       <h2>&#128203; Data Pending <span id="pendingCount" style="color:var(--muted);font-weight:400"></span></h2>
       <button class="btn soft btn-small" id="btnReloadPending">&#8637; Muat Ulang</button>
     </div>
     <p class="small" style="margin-bottom:8px">
-      Data siswa yang diketik manual oleh siswa saat check-in. Klik <b>Setujui</b> untuk memasukkannya
-      ke daftar siswa resmi, atau <b>Abaikan</b> bila tidak diperlukan.
+      Semua check-in masuk ke daftar ini dan menunggu persetujuan admin. Siswa yang sudah terdaftar
+      akan ditautkan ke data siswa; nama baru akan dibuatkan data siswa. Poin Berangkat Pagi baru
+      dicatat setelah <b>Setujui</b>.
     </p>
     <div id="pendingContainer" class="empty">Memuat&hellip;</div>
   </div>
@@ -413,7 +414,7 @@
           selfieCell = '<span class="small">-</span>';
         }
         var nameCell = escapeHtml(ci.nama || '-');
-        if (ci.is_pending) {
+        if (ci.student_id == null) {
           nameCell += ' <span class="tag">belum terdaftar</span>';
         }
 
@@ -461,7 +462,7 @@
       $('#pendingCount').textContent = ' (' + items.length + ')';
 
       if (items.length === 0) {
-        box.innerHTML = '<div class="empty">Tidak ada data siswa yang menunggu ditinjau.</div>';
+        box.innerHTML = '<div class="empty">Tidak ada check-in yang menunggu persetujuan.</div>';
         return;
       }
 
@@ -499,19 +500,28 @@
     }
 
     async function approvePending(id, nama) {
-      if (!confirm('Setujui "' + (nama || '') + '"?\n\nSiswa akan masuk daftar resmi DAN dicatat di Apresiasi Berangkat Pagi.')) return;
+      if (!confirm('Setujui "' + (nama || '') + '"?\n\nPoin Berangkat Pagi akan dicatat setelah disetujui. Jika siswa belum terdaftar, data siswa akan dibuat otomatis.')) return;
       var res = await window.SBPag.approvePendingStudent(id);
       if (res.error) { alert('Gagal menyetujui: ' + (res.detail || res.error)); return; }
       loadPending();
-      initDashboard(); // refresh daftar check-in (label "belum terdaftar" hilang)
-      notice('"' + (nama || 'Siswa') + '" disetujui. Dicatat di daftar siswa & Apresiasi Berangkat Pagi.');
+      initDashboard(); // refresh daftar check-in & ringkasan
+      var morning = res.data && res.data.morning;
+      if (morning && morning.status === 'tercatat') {
+        notice('"' + (nama || 'Siswa') + '" disetujui. +1 poin Berangkat Pagi sudah dicatat.');
+      } else if (morning && morning.status === 'sudah_ada') {
+        notice('"' + (nama || 'Siswa') + '" disetujui. Catatan Berangkat Pagi hari ini sudah ada.');
+      } else {
+        notice('"' + (nama || 'Siswa') + '" disetujui.');
+      }
     }
 
     async function rejectPending(id, nama) {
-      if (!confirm('Abaikan data "' + (nama || '') + '"? Check-in tetap tercatat, hanya tidak dimasukkan ke daftar siswa.')) return;
+      if (!confirm('Abaikan data "' + (nama || '') + '"?\n\nCheck-in tetap tercatat, tetapi poin Berangkat Pagi tidak diberikan.')) return;
       var res = await window.SBPag.rejectPendingStudent(id);
       if (res.error) { alert('Gagal mengabaikan: ' + (res.detail || res.error)); return; }
       loadPending();
+      initDashboard(); // refresh daftar check-in & ringkasan
+      notice('"' + (nama || 'Siswa') + '" diabaikan. Poin tidak diberikan.');
     }
 
     // 2. Lihat selfie: unduh sebagai blob (hindari ORB dari <img src> cross-origin)

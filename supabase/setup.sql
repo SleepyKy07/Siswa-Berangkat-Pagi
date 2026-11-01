@@ -331,8 +331,9 @@ drop function if exists get_selfie_url(text, int);
 -- 10a. Simpan check-in manual (server-validated).
 -- - Sesi harus AKTIF
 -- - Nama & kelas wajib (setelah dipangkas spasi)
--- - Siswa terdaftar (nama+kelas cocok, aktif) langsung tertaut & dapat poin
--- - Nama baru masuk pending_students untuk ditinjau admin
+-- - Siswa terdaftar (nama+kelas cocok, aktif) tetap ditautkan ke check_ins,
+--   TETAPI tetap masuk pending dan belum dapat poin sampai admin menyetujui.
+-- - Nama baru juga masuk pending_students untuk ditinjau admin
 -- - Anti-duplikat: nama+kelas sama ATAU student_id sama pada hari yang sama
 -- - Tanggal & jam memakai WAKTU SERVER
 create or replace function submit_checkin_manual(
@@ -377,8 +378,9 @@ begin
   end if;
 
   -- 3. Cari siswa aktif dengan nama & kelas yang cocok.
-  --    Jika ketemu: check-in langsung tertaut dan poin langsung diberikan.
-  --    Jika tidak: check-in masuk pending_students.
+  --    Jika ketemu: check-in tetap ditautkan ke siswa untuk proteksi duplikat,
+  --    tetapi poin TIDAK diberikan sampai admin menyetujui pending.
+  --    Jika tidak: check-in tetap masuk pending sebagai siswa baru.
   select s.id into v_student_id
   from students s
   where s.aktif = true
@@ -412,17 +414,14 @@ begin
   values (v_student_id, now_wib()::date, now(), p_selfie_path, v_nama, v_kelas)
   returning * into v_row;
 
-  -- 6. Pending hanya untuk nama baru; siswa terdaftar langsung dapat poin.
-  if v_student_id is null then
-    insert into pending_students (nama, kelas, checkin_id, selfie_path, status)
-    values (v_nama, v_kelas, v_row.id, p_selfie_path, 'pending')
-    returning id into v_pending_id;
+  -- 6. SEMUA check-in masuk pending. Siswa terdaftar tetap ditautkan ke
+  --    student_id agar unique (student_id, checkin_date) mencegah scan ganda,
+  --    tetapi poin baru dicatat setelah admin menyetujui.
+  insert into pending_students (nama, kelas, checkin_id, selfie_path, status)
+  values (v_nama, v_kelas, v_row.id, p_selfie_path, 'pending')
+  returning id into v_pending_id;
 
-    v_morning := jsonb_build_object('status', 'menunggu_approval');
-  else
-    v_pending_id := null;
-    v_morning := sync_morning_from_checkin(v_row.id);
-  end if;
+  v_morning := jsonb_build_object('status', 'menunggu_approval');
 
   return jsonb_build_object(
     'success', true,
@@ -438,7 +437,8 @@ begin
 end;
 $$;
 
--- 10b. Daftar data siswa yang menunggu ditinjau admin.
+-- 10b. Daftar semua check-in yang menunggu ditinjau admin.
+-- Termasuk siswa terdaftar yang belum di-approve dan nama baru.
 create or replace function list_pending_students(p_status text default 'pending')
 returns table (
   id bigint,
@@ -458,9 +458,11 @@ as $$
   limit 500;
 $$;
 
--- 10c. Setujui data pending -> masukkan ke tabel students.
--- Kolom `nis` wajib & unik, jadi diisi otomatis dengan 'AUTO-<id>' (tidak
--- dipakai aplikasi maupun ditampilkan ke siswa).
+-- 10c. Setujui data pending -> tautkan/buat siswa, lalu catat poin.
+-- Untuk siswa yang sudah terdaftar, pakai student_id dari check_ins agar
+-- tidak salah mencocokkan nama/kelas yang mirip.
+-- Kolom `nis` wajib & unik, jadi siswa baru diisi otomatis dengan 'AUTO-<id>'
+-- (tidak dipakai aplikasi maupun ditampilkan ke siswa).
 create or replace function approve_pending_student(p_id bigint)
 returns jsonb
 language plpgsql
@@ -480,12 +482,21 @@ begin
     return jsonb_build_object('error', 'SUDAH_DITINJAU', 'status', v_row.status);
   end if;
 
-  -- Cari siswa yang sudah ada dengan nama & kelas sama (hindari duplikat)
-  select s.id into v_student_id
-  from students s
-  where lower(trim(s.nama)) = lower(trim(v_row.nama))
-    and lower(trim(coalesce(s.kelas, ''))) = lower(trim(v_row.kelas))
-  limit 1;
+  -- Prioritaskan siswa yang sudah tertaut di check-in (siswa terdaftar).
+  if v_row.checkin_id is not null then
+    select c.student_id into v_student_id
+    from check_ins c
+    where c.id = v_row.checkin_id;
+  end if;
+
+  -- Kalau belum tertaut, cari siswa dengan nama & kelas sama (hindari duplikat).
+  if v_student_id is null then
+    select s.id into v_student_id
+    from students s
+    where lower(trim(s.nama)) = lower(trim(v_row.nama))
+      and lower(trim(coalesce(s.kelas, ''))) = lower(trim(v_row.kelas))
+    limit 1;
+  end if;
 
   if v_student_id is null then
     v_nis := 'AUTO-' || p_id::text;
@@ -500,7 +511,7 @@ begin
     end if;
   end if;
 
-  -- Tautkan check-in ke siswa hasil penyetujuan
+  -- Tautkan check-in ke siswa (jika belum tertaut).
   if v_row.checkin_id is not null and v_student_id is not null then
     update check_ins set student_id = v_student_id where id = v_row.checkin_id;
   end if;
@@ -509,7 +520,7 @@ begin
   set status = 'approved', reviewed_at = now()
   where id = p_id;
 
-  -- Catat ke apresiasi "Berangkat Pagi" untuk check-in yang baru ditautkan.
+  -- Catat ke apresiasi "Berangkat Pagi" SETELAH disetujui.
   -- (Fungsi sync_morning_from_checkin dibuat di bagian 12.)
   if v_row.checkin_id is not null then
     v_morning := sync_morning_from_checkin(v_row.checkin_id);
@@ -545,8 +556,11 @@ $$;
 -- Untuk siswa terdaftar -> pakai nama/kelas dari tabel students.
 -- Untuk siswa manual    -> pakai nama_manual/kelas_manual.
 -- `student_id` dipakai dashboard untuk mencocokkan status poin dari
--- list_morning_records(). Jangan join ke morning_records di sini karena
--- fungsi ini didefinisikan sebelum tabel morning_records dibuat.
+-- list_morning_records().
+-- `is_pending` = ada pending_students berstatus 'pending' untuk check-in ini.
+-- Ini mencakup siswa terdaftar yang belum di-approve.
+-- Jangan join ke morning_records di sini karena fungsi ini didefinisikan
+-- sebelum tabel morning_records dibuat.
 drop function if exists list_today_checkins();
 
 create or replace function list_today_checkins()
@@ -569,7 +583,10 @@ as $$
     coalesce(s.kelas, c.kelas_manual, '') as kelas,
     c.checked_in_at,
     c.selfie_path,
-    (c.student_id is null) as is_pending
+    exists (
+      select 1 from pending_students p
+      where p.checkin_id = c.id and p.status = 'pending'
+    ) as is_pending
   from check_ins c
   left join students s on s.id = c.student_id
   where c.checkin_date = now_wib()::date
@@ -761,8 +778,9 @@ begin
 end;
 $$;
 
--- 12d. Catat "Berangkat Pagi" untuk sebuah check-in yang sudah tertaut.
--- Semua check-in selama sesi aktif dicatat (bukan hanya yang terawal).
+-- 12d. Catat "Berangkat Pagi" untuk check-in yang sudah disetujui admin.
+-- Dipanggil oleh approve_pending_student(). Semua check-in selama sesi aktif
+-- dicatat (bukan hanya yang terawal).
 -- Return: { status: 'tercatat'|'sudah_ada'|'tidak_ada', ... }
 create or replace function sync_morning_from_checkin(p_checkin_id bigint)
 returns jsonb

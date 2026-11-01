@@ -18,7 +18,7 @@ Program absensi sekolah menggunakan QR permanen + server-side validation.
 - **Status AKTIF / NONAKTIF**: Ditentukan server, tidak bisa diubah localStorage
 - **Auto Schedule**: Jam mulai/jam selesai diatur admin di Supabase
 - **Check-in Input Manual**: Siswa mengetik **nama & kelas** sendiri → selfie → simpan
-- **Data Pending**: Nama/kelas yang belum cocok dengan siswa terdaftar masuk `pending_students`, ditinjau admin
+- **Data Pending**: Semua check-in masuk `pending_students` dan menunggu persetujuan admin sebelum poin dicatat
 - **Berangkat Pagi**: Semua check-in sebelum jam tutup sesi (mis. 06:40) dicatat dan diperlakukan sama (1x = 1 poin)
 - **Dashboard Admin**: Status + daftar check-in + status poin + lihat selfie + tinjau data pending
 
@@ -37,7 +37,7 @@ Isi nama & kelas (siswa mengetik sendiri)
    ↓
 Ambil selfie (kamera browser: preview → ambil → foto ulang / gunakan foto)
    ↓
-Konfirmasi → Simpan check-in (timestamp SERVER) → langsung tercatat berangkat pagi bila nama+kelas cocok dengan siswa aktif; nama baru masuk data pending
+Konfirmasi → Simpan check-in (timestamp SERVER) → masuk Data Pending; poin baru dicatat setelah admin menyetujui
 ```
 
 Identitas yang dipakai hanya: **nama**, **kelas**, **selfie**, **timestamp server**.
@@ -74,20 +74,23 @@ pesan **"Anda sudah melakukan absensi hari ini."**
 > sistem menganggapnya orang berbeda. Untuk mengurangi risiko ini, siswa diarahkan
 > menulis kelas lengkap dengan format seragam (mis. `XI TKJ 2`).
 
-## Data Pending (Nama/Kelas Manual)
+## Data Pending (Persetujuan Admin)
 
-Check-in dengan **nama + kelas yang belum cocok** dengan siswa aktif dicatat di
-tabel `pending_students` dengan status `pending`. Siswa yang sudah terdaftar
-langsung tercatat sebagai berangkat pagi dan langsung mendapat poin.
+Semua check-in dicatat di tabel `pending_students` dengan status `pending`,
+termasuk siswa yang sudah terdaftar dan sudah pernah punya poin. Poin
+Berangkat Pagi **belum** diberikan sampai admin menyetujui.
 
 - Dashboard admin → kartu **Data Pending** → tombol **Setujui** / **Abai**
-- **Setujui** → baris dipindahkan ke tabel `students` (kolom `nis` diisi otomatis
-  `AUTO-<id>` karena constraint `UNIQUE NOT NULL`; NIS tidak dipakai aplikasi)
-- **Abai** → status jadi `rejected`; check-in tetap tercatat
-- Check-in siswa yang belum disetujui tetap tampil di daftar harian dengan label
-  **"belum terdaftar"**
-- Setelah **Setujui**, check-in ditautkan ke siswa dan catatan berangkat pagi
-  (poin) dibuat otomatis
+- **Setujui** → check-in ditautkan ke siswa yang cocok; bila nama+kelas belum
+  ada, siswa baru dibuat (kolom `nis` diisi otomatis `AUTO-<id>` karena
+  constraint `UNIQUE NOT NULL`; NIS tidak dipakai aplikasi). Setelah itu
+  catatan berangkat pagi (poin) dibuat otomatis.
+- **Abai** → status jadi `rejected`; check-in tetap tercatat, tetapi poin tidak
+  diberikan.
+- Siswa terdaftar yang belum disetujui tampil sebagai **"menunggu approve"**.
+  Label **"belum terdaftar"** hanya muncul bila check-in belum tertaut ke
+  `students` (`student_id` null).
+- Approve bersifat idempotent: menekan Setujui dua kali tidak menggandakan poin.
 
 ## QR Permanen (untuk ditempel di gerbang)
 
@@ -236,8 +239,8 @@ Dashboard dilindungi **PIN sederhana** (dicek di browser):
   per tanggal (`unique(student_id, tanggal)`).
 - Tidak ada lagi penanda siapa yang datang lebih dulu: semua siswa yang
   berhasil check-in sebelum jam tutup sesi mendapat perlakuan dan poin yang sama.
-- Siswa terdaftar langsung mendapat poin saat check-in; siswa baru mendapat poin
-  setelah admin menyetujui data pending.
+- Semua check-in harus disetujui admin sebelum poin dicatat, termasuk siswa
+  yang sudah terdaftar dan sudah pernah punya poin.
 
 ## Hapus Data (Admin)
 
@@ -319,10 +322,10 @@ dibuka dari perangkat mana pun dan tidak hilang bila cache dibersihkan:
 Halaman ini **tidak memakai PIN** — langsung terbuka (tombol **Kunci/Keluar** dan
 layar PIN dihapus). PIN hanya dipakai oleh dashboard admin (`checkin/dashboard.html`).
 
-> **Penting**: pengaitan otomatis ke apresiasi terjadi saat check-in (siswa
-> terdaftar) atau saat admin **menyetujui** data pending. `submit_checkin_manual()`
-> dan `approve_pending_student()` memanggil `sync_morning_from_checkin()`, yang
-> mencatat semua check-in yang sudah tertaut — bukan hanya yang terawal.
+> **Penting**: pengaitan otomatis ke apresiasi hanya terjadi saat admin
+> **menyetujui** check-in pending. `submit_checkin_manual()` tidak lagi memanggil
+> `sync_morning_from_checkin()`; `approve_pending_student()` yang memanggilnya
+> setelah status diubah menjadi `approved`.
 > Penambahan manual tidak lagi tersedia di UI; koreksi dilakukan lewat tombol
 > **Batalkan** (`hapus_morning_record`). Fungsi `tambah_morning_manual()` tetap
 > ada untuk kebutuhan SQL/API.
@@ -336,10 +339,10 @@ layar PIN dihapus). PIN hanya dipakai oleh dashboard admin (`checkin/dashboard.h
 | Fungsi | Kegunaan |
 |--------|----------|
 | `get_session_status()` | Status AKTIF/NONAKTIF + jadwal + waktu server |
-| `submit_checkin_manual(p_nama, p_kelas, p_selfie_path)` | Simpan check-in (timestamp SERVER + anti-duplikat nama/kelas & student_id); siswa terdaftar langsung dapat poin |
-| `list_pending_students(p_status)` | Daftar data siswa pending untuk admin |
-| `approve_pending_student(p_id)` | Setujui → masukkan ke tabel `students` + catat berangkat pagi/poin |
-| `reject_pending_student(p_id)` | Abaikan data pending |
+| `submit_checkin_manual(p_nama, p_kelas, p_selfie_path)` | Simpan check-in (timestamp SERVER + anti-duplikat nama/kelas & student_id); semua check-in masuk pending, poin belum diberikan |
+| `list_pending_students(p_status)` | Daftar check-in pending untuk admin (termasuk siswa terdaftar) |
+| `approve_pending_student(p_id)` | Setujui → tautkan/buat siswa + catat berangkat pagi/poin |
+| `reject_pending_student(p_id)` | Abaikan check-in pending → tidak ada poin |
 | `list_today_checkins()` | Daftar check-in hari ini (termasuk `student_id` untuk status poin) |
 | `collect_selfie_paths(p_mode, p_before_date)` | Kumpulkan path selfie yang akan dihapus |
 | `count_history_to_delete(p_mode, p_before_date)` | Hitung jumlah data yang akan dihapus |
@@ -462,7 +465,8 @@ perlu pasang ulang.
     06:00–06:40, diatur admin) dicatat sebagai berangkat pagi dan mendapat 1 poin.
     Banyak siswa boleh tercatat pada tanggal yang sama; 1 siswa maksimal 1x per
     tanggal. Siswa terdaftar langsung mendapat poin saat check-in; nama baru
-    mendapat poin setelah disetujui. `sync_morning_from_checkin()` tidak lagi
+    mendapat poin setelah disetujui. (Aturan ini kemudian diganti oleh poin 20:
+    semua scan wajib approval admin.) `sync_morning_from_checkin()` tidak lagi
     mensyaratkan check-in terawal, `submit_checkin_manual()` langsung menautkan
     siswa terdaftar, `hitung_poin_siswa()`/`list_apresiasi_siswa()` memakai
     1 catatan = 1 poin, `list_today_checkins()` mengembalikan `student_id`, dan
@@ -497,6 +501,16 @@ perlu pasang ulang.
     backup dan memverifikasi hasil. Record `check_ins` tanpa `student_id`
     (pending/rejected) tidak diubah; poin tidak dihitung ulang. Jalankan
     **sekali**, bukan bagian dari `setup.sql`.
+20. **Semua scan wajib approval admin**: `submit_checkin_manual()` kini selalu
+    membuat baris `pending_students` dan tidak langsung memberi poin, termasuk
+    untuk siswa terdaftar yang sudah pernah punya poin. `check_ins.student_id`
+    tetap diisi untuk siswa terdaftar agar anti-duplikat 1x/hari bekerja.
+    `approve_pending_student()` memakai `student_id` tersebut (fallback ke
+    nama+kelas, lalu membuat siswa baru) dan baru memanggil
+    `sync_morning_from_checkin()` setelah disetujui. `list_today_checkins()`
+    menandai `is_pending` dari baris `pending_students` berstatus `pending`.
+    Data lama yang sudah auto-approve tidak diubah. Untuk project yang sudah
+    berjalan, jalankan `supabase/approval-flow.sql` di SQL Editor (backup dulu).
 
 ## Cara Menjalankan Secara Lokal (untuk testing)
 
@@ -509,6 +523,8 @@ perlu pasang ulang.
    Buka `https://localhost:8443/` (terima peringatan sertifikat self-signed).
 
 2. **Pastikan `supabase/setup.sql` terbaru sudah dijalankan** di SQL Editor
-   Supabase (bagian 10–13 diperlukan halaman apresiasi & check-in).
+   Supabase (bagian 10–13 diperlukan halaman apresiasi & check-in). Untuk
+   project yang sudah berjalan, jalankan juga `supabase/approval-flow.sql`
+   (backup dulu) agar semua scan baru masuk pending.
 
 3. PIN default: `1234` (ganti di `assets/js/supabase-config.js`).

@@ -141,7 +141,8 @@ var SBPag = (function () {
   // --- DATA SISWA MANUAL & PENDING ---
 
   /**
-   * Daftar data siswa yang menunggu ditinjau admin.
+   * Daftar check-in yang menunggu ditinjau admin.
+   * Termasuk siswa terdaftar yang belum di-approve dan nama baru.
    * @param {string} [status] - 'pending' (default) | 'approved' | 'rejected'
    * @returns {Promise<Object>} { items: Array, error }
    */
@@ -161,7 +162,7 @@ var SBPag = (function () {
   }
 
   /**
-   * Setujui data pending -> dipindahkan ke tabel students.
+   * Setujui check-in pending -> tautkan/buat siswa + catat poin.
    * @param {number|string} id - id baris pending_students
    */
   async function approvePendingStudent(id) {
@@ -178,7 +179,7 @@ var SBPag = (function () {
   }
 
   /**
-   * Abaikan data pending (tidak dimasukkan ke students).
+   * Abaikan check-in pending (tidak ada poin yang diberikan).
    * @param {number|string} id
    */
   async function rejectPendingStudent(id) {
@@ -365,13 +366,14 @@ var SBPag = (function () {
   /**
    * Catat check-in dengan NAMA & KELAS yang diketik siswa sendiri.
    * Validasi, anti-duplikat, dan timestamp dilakukan SERVER lewat RPC
-   * submit_checkin_manual().
+   * submit_checkin_manual(). Semua check-in masuk status pending dan poin
+   * baru dicatat setelah admin menyetujui.
    * @param {string} nama - nama siswa (input bebas)
    * @param {string} kelas - kelas siswa (input bebas)
    * @param {string} selfieDataUrl - data URL foto selfie (opsional)
    * @returns {Promise<Object>} { success, nama, kelas, timestamp, selfiePath,
    *   checkinId, pendingId, morning } | { error, detail }
-   *   `morning` = { status: 'tercatat'|'menunggu_approval'|'sudah_ada', ... }
+   *   `morning` = { status: 'menunggu_approval', ... } untuk scan baru.
    */
   async function submitCheckInManual(nama, kelas, selfieDataUrl) {
     if (!(await ready())) return { error: 'BACKEND_BELUM_KONFIGURASI' };
