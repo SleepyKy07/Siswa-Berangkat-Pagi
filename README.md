@@ -8,7 +8,7 @@ Program absensi sekolah menggunakan QR permanen + server-side validation.
 |----------|-----------|---------|
 | **Frontend** | HTML / CSS / Vanilla JS (GitHub Pages) | Semua file lama tetap bekerja tanpa perubahan |
 | **Backend** | Supabase (free tier) | Postgres + Storage + API |
-| **Database** | Postgres via Supabase | Tabel: sessions, students, check_ins, pending_students, morning_records |
+| **Database** | Postgres via Supabase | Tabel: sessions, students, check_ins, pending_students, morning_records, gerbang_anggota, gerbang_setting, gerbang_jadwal, gerbang_berhalangan |
 | **Storage** | Supabase Storage bucket `selfies` | Privat, dilihat admin via signed URL singkat |
 | **Routing** | `/checkin` → status & aksi | QR permanen di gerbang |
 
@@ -511,6 +511,20 @@ perlu pasang ulang.
     menandai `is_pending` dari baris `pending_students` berstatus `pending`.
     Data lama yang sudah auto-approve tidak diubah. Untuk project yang sudah
     berjalan, jalankan `supabase/approval-flow.sql` di SQL Editor (backup dulu).
+21. **Migrasi Jadwal Petugas Gerbang ke Supabase**: modul `jadwal-gerbang/` kini
+    sepenuhnya berjalan online dan terhubung ke Supabase (tabel `gerbang_anggota`,
+    `gerbang_setting`, `gerbang_jadwal`, `gerbang_berhalangan`), menggantikan
+    penyimpanan `localStorage` lama agar data jadwal, anggota, dan setting dapat
+    diakses secara universal lintas perangkat. Operasi server dibungkus via RPC
+    `gerbang_get_state`, `gerbang_simpan_anggota`, `gerbang_simpan_anggota_batch`,
+    `gerbang_hapus_anggota`, `gerbang_toggle_anggota`, `gerbang_simpan_jadwal`,
+    `gerbang_hapus_semua_jadwal`, `gerbang_simpan_berhalangan`, `gerbang_hapus_berhalangan`,
+    dan `gerbang_simpan_setting`. Seed 42 anggota OSIS (33 Kelas 10 dan 9 Kelas 11)
+    disediakan di bagian 14 `setup.sql` secara idempotent, nama Bintang Rizky Hary Pratama
+    dinormalisasi, beban jumlah tugas dihitung dinamis dari jadwal aktif tanpa counter drift,
+    dan aturan komposisi adil (4 petugas: 2 Kls 10 + 2 Kls 11 / 4 Kls 10 saat putaran kls 11
+    selesai, gender 0L/2L) tetap diproses di klien. Halaman helper `seed-localstorage.html`
+    telah dihapus. **Jalankan ulang `setup.sql`** di SQL Editor untuk membuat tabel dan fungsi gerbang.
 
 ## Cara Menjalankan Secara Lokal (untuk testing)
 

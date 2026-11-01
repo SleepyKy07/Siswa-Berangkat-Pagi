@@ -1252,3 +1252,563 @@ on conflict (nis) do nothing;
 insert into students (nis, nama, kelas, jurusan, jk) values
 ('2026003', 'Citra Dewi', 'X AKL', 'AKL', 'P')
 on conflict (nis) do nothing;
+
+/* ================================================================
+   14. JADWAL PETUGAS GERBANG (OSIS)
+   ================================================================
+   Penyimpanan server-side untuk modul "Jadwal Petugas Gerbang"
+   (jadwal-gerbang/). Menggantikan localStorage sehingga data jadwal,
+   anggota, dan pengaturan tersinkronisasi secara universal.
+   ================================================================ */
+
+-- 14a. Tabel Anggota Petugas Gerbang
+create table if not exists gerbang_anggota (
+  id bigint generated always as identity primary key,
+  nama text not null,
+  jk text not null check (jk in ('L','P')),
+  kelas text not null default '10' check (kelas in ('10','11')),
+  no_hp text default '',
+  aktif boolean not null default true,
+  created_at timestamptz default now()
+);
+
+create unique index if not exists idx_gerbang_anggota_nama_unique
+  on gerbang_anggota (lower(trim(nama)));
+
+-- 14b. Tabel Pengaturan Jadwal Gerbang (1 baris id=1)
+create table if not exists gerbang_setting (
+  id int primary key default 1 check (id = 1),
+  tgl_mulai date default '2026-10-07',
+  per_hari int default 4 check (per_hari = 4),
+  jam_mulai text default '06:30',
+  jam_selesai text default '07:00',
+  hari_aktif int[] default array[1,2,3,4,5],
+  hari_libur text default '',
+  tpl_wa text default '',
+  updated_at timestamptz default now()
+);
+
+insert into gerbang_setting (id, tgl_mulai, per_hari, jam_mulai, jam_selesai, hari_aktif, hari_libur, tpl_wa)
+values (
+  1,
+  '2026-10-07',
+  4,
+  '06:30',
+  '07:00',
+  array[1,2,3,4,5],
+  '',
+  'Nama-nama di bawah ini adalah petugas gerbang hari ini, {tanggal}:' || E'\n' || '{daftar}' || E'\n' || 'Mohon konfirmasi. Terima kasih.' || E'\n\n' || '#PetugasGerbang #{tanggal} #{waktu}'
+)
+on conflict (id) do nothing;
+
+-- 14c. Tabel Jadwal Petugas Gerbang
+create table if not exists gerbang_jadwal (
+  tanggal date primary key,
+  petugas bigint[] not null,
+  status text not null default 'belum' check (status in ('belum','berhalangan','butuh-ganti')),
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index if not exists idx_gerbang_jadwal_tanggal on gerbang_jadwal(tanggal);
+
+-- 14d. Tabel Periode Berhalangan Petugas Gerbang
+create table if not exists gerbang_berhalangan (
+  id bigint generated always as identity primary key,
+  anggota_id bigint references gerbang_anggota(id) on delete cascade not null,
+  tanggal date not null,
+  keterangan text default '',
+  created_at timestamptz default now(),
+  unique (anggota_id, tanggal)
+);
+
+create index if not exists idx_gerbang_berhalangan_anggota on gerbang_berhalangan(anggota_id);
+create index if not exists idx_gerbang_berhalangan_tanggal on gerbang_berhalangan(tanggal);
+
+-- 14e. Seed 42 Anggota Petugas Gerbang (idempotent)
+insert into gerbang_anggota (nama, jk, kelas, no_hp, aktif)
+values
+  ('Affifah Fitria H', 'P', '10', '', true),
+  ('Albertus Alkasih', 'P', '10', '', true),
+  ('Ayra Nazhwa Nathania', 'P', '10', '', true),
+  ('Ayu Alvianti', 'P', '10', '', true),
+  ('Ayu Safina', 'P', '10', '', true),
+  ('Calysta Citra Christiyani', 'P', '10', '', true),
+  ('Carol Valeri Syibilla', 'P', '10', '', true),
+  ('Celsy Wulandari', 'P', '10', '', true),
+  ('Chikita Melody Elis Saputri', 'P', '10', '', true),
+  ('Clarisa Adelia Afianti', 'P', '10', '', true),
+  ('Dika Pratama', 'L', '10', '', true),
+  ('Dinda Ramadanti', 'P', '10', '', true),
+  ('Elza Chika Amara', 'P', '10', '', true),
+  ('Hengki Kanegi', 'L', '10', '', true),
+  ('Ida Safira', 'P', '10', '', true),
+  ('Jerda Perkasa', 'L', '10', '', true),
+  ('Jheslin Sonya Pratama', 'P', '10', '', true),
+  ('Kelvin Kurniawan', 'L', '10', '', true),
+  ('Kirania Amanda Rahma', 'P', '10', '', true),
+  ('M. Ridho Saputra', 'L', '10', '', true),
+  ('Melly Hasanah', 'P', '10', '', true),
+  ('Mesya Agia Putri', 'P', '10', '', true),
+  ('Mutiara Oktaviana', 'P', '10', '', true),
+  ('Nayla Ansania', 'P', '10', '', true),
+  ('Putri Habsari', 'P', '10', '', true),
+  ('Restu Wulan Ningrum', 'P', '10', '', true),
+  ('Reza Prasetya', 'L', '10', '', true),
+  ('Safira Azzhara', 'P', '10', '', true),
+  ('Sava Fitria Ramadhani', 'P', '10', '', true),
+  ('Shafa Alya Fadilah', 'P', '10', '', true),
+  ('Tia Desvita Rahayu', 'P', '10', '', true),
+  ('Yuanita Artanti Etika Arundati', 'P', '10', '', true),
+  ('Yunita Sari', 'P', '10', '', true),
+  ('Bintang Rizky Hary Pratama', 'L', '11', '', true),
+  ('Cinta Anggy Kharisma', 'P', '11', '', true),
+  ('Elsa Devita Sari', 'P', '11', '', true),
+  ('Fathiyah Hasna Saputri', 'P', '11', '', true),
+  ('Naela Lutfiah Setiawan', 'P', '11', '', true),
+  ('Novia Hairunisa', 'P', '11', '', true),
+  ('Putri Jene', 'P', '11', '', true),
+  ('Rifkan Ari Saputra', 'L', '11', '', true),
+  ('Rindu Bayu Segara', 'P', '11', '', true)
+on conflict (lower(trim(nama))) do update set
+  jk = excluded.jk,
+  kelas = excluded.kelas;
+
+-- Rename jika ada data lama bernama Daffa
+update gerbang_anggota
+set nama = 'Bintang Rizky Hary Pratama', kelas = '11'
+where lower(trim(nama)) = 'daffa rizky hary pratama';
+
+-- 14f. RPC Functions untuk Jadwal Gerbang
+
+-- Muat seluruh state jadwal gerbang dalam satu panggilan JSON
+create or replace function gerbang_get_state()
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_anggota jsonb;
+  v_jadwal jsonb;
+  v_berhalangan jsonb;
+  v_brhl_ket jsonb;
+  v_hitung jsonb;
+  v_setting jsonb;
+begin
+  -- Anggota terdaftar
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'id', a.id::text,
+      'nama', a.nama,
+      'jk', a.jk,
+      'kelas', a.kelas,
+      'no_hp', coalesce(a.no_hp, ''),
+      'aktif', a.aktif
+    ) order by a.nama asc
+  ), '[]'::jsonb)
+  into v_anggota
+  from gerbang_anggota a;
+
+  -- Jadwal harian
+  select coalesce(
+    jsonb_object_agg(
+      to_char(j.tanggal, 'YYYY-MM-DD'),
+      jsonb_build_object(
+        'petugas', (
+          select coalesce(jsonb_agg(pid::text), '[]'::jsonb)
+          from unnest(j.petugas) as pid
+        ),
+        'status', j.status
+      )
+    ),
+    '{}'::jsonb
+  )
+  into v_jadwal
+  from gerbang_jadwal j;
+
+  -- Periode berhalangan per anggota
+  select coalesce(
+    jsonb_object_agg(
+      sub.anggota_id::text,
+      sub.dates
+    ),
+    '{}'::jsonb
+  )
+  into v_berhalangan
+  from (
+    select b.anggota_id, jsonb_agg(to_char(b.tanggal, 'YYYY-MM-DD') order by b.tanggal asc) as dates
+    from gerbang_berhalangan b
+    group by b.anggota_id
+  ) sub;
+
+  -- Keterangan berhalangan terakhir per anggota
+  select coalesce(
+    jsonb_object_agg(
+      sub.anggota_id::text,
+      sub.keterangan
+    ),
+    '{}'::jsonb
+  )
+  into v_brhl_ket
+  from (
+    select distinct on (b.anggota_id) b.anggota_id, b.keterangan
+    from gerbang_berhalangan b
+    where coalesce(b.keterangan, '') <> ''
+    order by b.anggota_id, b.tanggal desc
+  ) sub;
+
+  -- Hitung otomatis total penugasan per anggota dari jadwal aktif (bebas drift)
+  select coalesce(
+    jsonb_object_agg(sub.pid::text, sub.total),
+    '{}'::jsonb
+  )
+  into v_hitung
+  from (
+    select pid, count(*) as total
+    from gerbang_jadwal j,
+         unnest(j.petugas) as pid
+    group by pid
+  ) sub;
+
+  -- Setting jadwal
+  select jsonb_build_object(
+    'tglMulai', to_char(coalesce(s.tgl_mulai, '2026-10-07'::date), 'YYYY-MM-DD'),
+    'perHari', coalesce(s.per_hari, 4),
+    'jamMulai', coalesce(s.jam_mulai, '06:30'),
+    'jamSelesai', coalesce(s.jam_selesai, '07:00'),
+    'hariAktif', coalesce(to_jsonb(s.hari_aktif), '[1,2,3,4,5]'::jsonb),
+    'hariLibur', coalesce(s.hari_libur, ''),
+    'tplWa', coalesce(s.tpl_wa, '')
+  )
+  into v_setting
+  from gerbang_setting s
+  where s.id = 1;
+
+  if v_setting is null then
+    v_setting := jsonb_build_object(
+      'tglMulai', '2026-10-07',
+      'perHari', 4,
+      'jamMulai', '06:30',
+      'jamSelesai', '07:00',
+      'hariAktif', '[1,2,3,4,5]'::jsonb,
+      'hariLibur', '',
+      'tplWa', ''
+    );
+  end if;
+
+  return jsonb_build_object(
+    'anggota', v_anggota,
+    'jadwal', v_jadwal,
+    'berhalangan', v_berhalangan,
+    'brhlKet', v_brhl_ket,
+    'hitung', v_hitung,
+    'setting', v_setting
+  );
+end;
+$$;
+
+-- Tambah / ubah data anggota
+create or replace function gerbang_simpan_anggota(
+  p_id bigint default null,
+  p_nama text default '',
+  p_jk text default 'P',
+  p_kelas text default '10',
+  p_no_hp text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_nama text;
+  v_jk text;
+  v_kelas text;
+  v_no_hp text;
+  v_row gerbang_anggota;
+begin
+  v_nama := trim(coalesce(p_nama, ''));
+  if length(v_nama) < 2 then
+    return jsonb_build_object('error', 'Nama minimal 2 karakter');
+  end if;
+
+  v_jk := upper(trim(coalesce(p_jk, 'P')));
+  if v_jk not in ('L', 'P') then
+    return jsonb_build_object('error', 'Jenis kelamin harus L atau P');
+  end if;
+
+  v_kelas := trim(coalesce(p_kelas, '10'));
+  if v_kelas not in ('10', '11') then
+    v_kelas := '10';
+  end if;
+
+  v_no_hp := trim(coalesce(p_no_hp, ''));
+
+  if p_id is not null and p_id > 0 then
+    if exists (select 1 from gerbang_anggota where lower(trim(nama)) = lower(v_nama) and id <> p_id) then
+      return jsonb_build_object('error', 'Nama sudah digunakan oleh anggota lain');
+    end if;
+
+    update gerbang_anggota
+    set nama = v_nama, jk = v_jk, kelas = v_kelas, no_hp = v_no_hp
+    where id = p_id
+    returning * into v_row;
+
+    if not found then
+      return jsonb_build_object('error', 'Anggota tidak ditemukan');
+    end if;
+  else
+    if exists (select 1 from gerbang_anggota where lower(trim(nama)) = lower(v_nama)) then
+      return jsonb_build_object('error', 'Nama sudah ada dalam daftar');
+    end if;
+
+    insert into gerbang_anggota (nama, jk, kelas, no_hp, aktif)
+    values (v_nama, v_jk, v_kelas, v_no_hp, true)
+    returning * into v_row;
+  end if;
+
+  return jsonb_build_object(
+    'success', true,
+    'anggota', jsonb_build_object(
+      'id', v_row.id::text,
+      'nama', v_row.nama,
+      'jk', v_row.jk,
+      'kelas', v_row.kelas,
+      'no_hp', v_row.no_hp,
+      'aktif', v_row.aktif
+    )
+  );
+end;
+$$;
+
+-- Bulk import anggota dari array JSON
+create or replace function gerbang_simpan_anggota_batch(p_items jsonb)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_item jsonb;
+  v_nama text;
+  v_jk text;
+  v_kelas text;
+  v_no_hp text;
+  v_tambah int := 0;
+  v_gagal int := 0;
+begin
+  if jsonb_typeof(p_items) <> 'array' then
+    return jsonb_build_object('error', 'Format data harus berupa array');
+  end if;
+
+  for v_item in select * from jsonb_array_elements(p_items)
+  loop
+    v_nama := trim(coalesce(v_item->>'nama', ''));
+    v_jk := upper(trim(coalesce(v_item->>'jk', 'P')));
+    if v_jk not in ('L', 'P') then v_jk := 'P'; end if;
+    v_kelas := trim(coalesce(v_item->>'kelas', '10'));
+    if v_kelas not in ('10', '11') then v_kelas := '10'; end if;
+    v_no_hp := trim(coalesce(v_item->>'no_hp', ''));
+
+    if length(v_nama) >= 2 then
+      if not exists (select 1 from gerbang_anggota where lower(trim(nama)) = lower(v_nama)) then
+        insert into gerbang_anggota (nama, jk, kelas, no_hp, aktif)
+        values (v_nama, v_jk, v_kelas, v_no_hp, true);
+        v_tambah := v_tambah + 1;
+      else
+        v_gagal := v_gagal + 1;
+      end if;
+    else
+      v_gagal := v_gagal + 1;
+    end if;
+  end loop;
+
+  return jsonb_build_object('success', true, 'tambah', v_tambah, 'gagal', v_gagal);
+end;
+$$;
+
+-- Hapus anggota
+create or replace function gerbang_hapus_anggota(p_id bigint)
+returns jsonb
+language plpgsql
+security definer
+as $$
+begin
+  delete from gerbang_anggota where id = p_id;
+  return jsonb_build_object('success', true);
+end;
+$$;
+
+-- Toggle status aktif anggota
+create or replace function gerbang_toggle_anggota(p_id bigint)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_new_aktif boolean;
+begin
+  update gerbang_anggota
+  set aktif = not aktif
+  where id = p_id
+  returning aktif into v_new_aktif;
+
+  if not found then
+    return jsonb_build_object('error', 'Anggota tidak ditemukan');
+  end if;
+
+  return jsonb_build_object('success', true, 'aktif', v_new_aktif);
+end;
+$$;
+
+-- Simpan atau update jadwal (bisa satu atau batch tanggal)
+create or replace function gerbang_simpan_jadwal(p_items jsonb)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_item jsonb;
+  v_tgl date;
+  v_petugas bigint[];
+  v_status text;
+  v_count int := 0;
+begin
+  if jsonb_typeof(p_items) <> 'array' then
+    p_items := jsonb_build_array(p_items);
+  end if;
+
+  for v_item in select * from jsonb_array_elements(p_items)
+  loop
+    v_tgl := (v_item->>'tanggal')::date;
+    select array_agg(x::bigint) into v_petugas
+    from jsonb_array_elements_text(v_item->'petugas') as x;
+
+    v_status := coalesce(v_item->>'status', 'belum');
+    if v_status not in ('belum', 'berhalangan', 'butuh-ganti') then
+      v_status := 'belum';
+    end if;
+
+    if v_tgl is not null and v_petugas is not null then
+      insert into gerbang_jadwal (tanggal, petugas, status, updated_at)
+      values (v_tgl, v_petugas, v_status, now())
+      on conflict (tanggal) do update set
+        petugas = excluded.petugas,
+        status = excluded.status,
+        updated_at = now();
+      v_count := v_count + 1;
+    end if;
+  end loop;
+
+  return jsonb_build_object('success', true, 'count', v_count);
+end;
+$$;
+
+-- Hapus semua jadwal
+create or replace function gerbang_hapus_semua_jadwal()
+returns jsonb
+language plpgsql
+security definer
+as $$
+begin
+  truncate table gerbang_jadwal;
+  return jsonb_build_object('success', true);
+end;
+$$;
+
+-- Simpan periode berhalangan anggota
+create or replace function gerbang_simpan_berhalangan(
+  p_anggota_id bigint,
+  p_tgl_mulai date,
+  p_tgl_selesai date,
+  p_keterangan text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+as $$
+declare
+  v_cur date;
+  v_added int := 0;
+begin
+  if p_tgl_selesai < p_tgl_mulai then
+    return jsonb_build_object('error', 'Rentang tanggal tidak valid');
+  end if;
+
+  v_cur := p_tgl_mulai;
+  while v_cur <= p_tgl_selesai loop
+    insert into gerbang_berhalangan (anggota_id, tanggal, keterangan)
+    values (p_anggota_id, v_cur, coalesce(p_keterangan, ''))
+    on conflict (anggota_id, tanggal) do update set
+      keterangan = excluded.keterangan;
+    v_added := v_added + 1;
+    v_cur := v_cur + interval '1 day';
+  end loop;
+
+  return jsonb_build_object('success', true, 'added', v_added);
+end;
+$$;
+
+-- Hapus periode berhalangan (spesifik tanggal atau seluruh periode anggota)
+create or replace function gerbang_hapus_berhalangan(
+  p_anggota_id bigint,
+  p_tanggal date default null
+)
+returns jsonb
+language plpgsql
+security definer
+as $$
+begin
+  if p_tanggal is not null then
+    delete from gerbang_berhalangan
+    where anggota_id = p_anggota_id and tanggal = p_tanggal;
+  else
+    delete from gerbang_berhalangan
+    where anggota_id = p_anggota_id;
+  end if;
+  return jsonb_build_object('success', true);
+end;
+$$;
+
+-- Simpan pengaturan jadwal gerbang
+create or replace function gerbang_simpan_setting(
+  p_tgl_mulai date default '2026-10-07',
+  p_per_hari int default 4,
+  p_jam_mulai text default '06:30',
+  p_jam_selesai text default '07:00',
+  p_hari_aktif int[] default array[1,2,3,4,5],
+  p_hari_libur text default '',
+  p_tpl_wa text default ''
+)
+returns jsonb
+language plpgsql
+security definer
+as $$
+begin
+  insert into gerbang_setting (id, tgl_mulai, per_hari, jam_mulai, jam_selesai, hari_aktif, hari_libur, tpl_wa, updated_at)
+  values (
+    1,
+    coalesce(p_tgl_mulai, '2026-10-07'::date),
+    coalesce(p_per_hari, 4),
+    coalesce(p_jam_mulai, '06:30'),
+    coalesce(p_jam_selesai, '07:00'),
+    coalesce(p_hari_aktif, array[1,2,3,4,5]),
+    coalesce(p_hari_libur, ''),
+    coalesce(p_tpl_wa, ''),
+    now()
+  )
+  on conflict (id) do update set
+    tgl_mulai = excluded.tgl_mulai,
+    per_hari = excluded.per_hari,
+    jam_mulai = excluded.jam_mulai,
+    jam_selesai = excluded.jam_selesai,
+    hari_aktif = excluded.hari_aktif,
+    hari_libur = excluded.hari_libur,
+    tpl_wa = case when excluded.tpl_wa <> '' then excluded.tpl_wa else gerbang_setting.tpl_wa end,
+    updated_at = now();
+
+  return jsonb_build_object('success', true);
+end;
+$$;
+
+-- Izin akses tabel dan fungsi untuk role anon & authenticated
+grant all on gerbang_anggota, gerbang_setting, gerbang_jadwal, gerbang_berhalangan to anon, authenticated;
+grant usage, select on all sequences in schema public to anon, authenticated;
